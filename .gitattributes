@@ -1,0 +1,18 @@
+# 统一行尾策略：仓库内文本文件一律以 LF 存储，避免跨平台提交时出现「整个文件被修改」的假差异
+* text=auto eol=lf
+
+# Windows 专属脚本保留 CRLF，避免 cmd / PowerShell 解析异常
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源不做换行转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.wav binary
+*.mp3 binary
+*.mp4 binary
+*.webm binary
