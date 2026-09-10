@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>帧序 Frameflow · 视频制作 Agent</title><link rel="stylesheet" href="/base.css"><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><button class="logo logo-button" onclick="goHome()"><span class="mark">▰</span>帧序 <span class="en">Frameflow</span></button><div class="nav header-home"><span class="badge" id="connection">正在连接后台…</span><button onclick="showHistory()">我的项目</button><span class="avatar">创</span></div><div class="header-work"><span class="badge" id="modeBadge"></span><button class="backlink" onclick="goHome()">返回首页 ↗</button><span class="avatar">创</span></div></header>
+<main class="home">
+<div class="eyebrow">YOUR STORY. IN MOTION.</div><h1>让灵感，<span>即刻成片。</span></h1><div class="subtitle">从一句想法到完整视频，让 AI 陪你完成每一步。<br>选择一种表达方式，开启你的下一部作品。</div>
+<div class="sectionbar"><strong>你想如何讲述这个故事？</strong><span>01 / 选择创作模式</span></div>
+<div class="modes"><button class="modecard" onclick="start('image')"><div class="cardvisual"><span class="visual-label">IMAGE TO STORY</span><div class="photo"></div><div class="photo"></div><div class="photo"></div></div><div class="cardbody"><div class="cardtitle">图片轮播 <b>↗</b></div><p>让每一帧画面，串起一个好故事。<br>生成分镜图片，搭配旁白与音乐，自然流动。</p><div class="tags"><span>文生图</span><span>电影感叙事</span><span>旅行 · 科普 · 品牌</span></div></div></button><button class="modecard" onclick="start('html')"><div class="cardvisual htmlvisual"><span class="visual-label">IDEA TO MOTION</span><div class="orb"></div><div class="animtype">Ideas<br>in motion.<small>DESIGNED BY AI</small></div><div class="codechip">&lt;motion&gt; ✦ &lt;/motion&gt;</div></div><div class="cardbody"><div class="cardtitle">HTML 视频 <b>↗</b></div><p>用动态设计，让抽象想法跃然眼前。<br>在独立网页里播放动画，让文字、图形与内容一起演绎。</p><div class="tags"><span>真实 HTML 动画</span><span>动态排版</span><span>产品 · 数据 · 知识</span></div></div></button></div>
+<div class="process"><strong>严格按序 · 全程可追溯</strong><span>脚本 → 大纲 → 分镜 → 画面 → 声音 → 预览与修改 → 录屏输出</span></div><div id="recentHome"></div><div class="foot"><span>FRAMEFLOW / 灵感值得被看见</span><span id="providerNote">后台连接中</span></div>
+</main>
+<main class="workspace"><aside class="sidebar"><button onclick="goHome()">＋ 新建视频</button><h5>我的项目 / PROJECTS</h5><div class="projects" id="projects"></div><div class="sidebottom"><span class="dot"></span>后端持久化保存<br><span id="providerSide">本地生成服务</span><button class="delete-project" onclick="deleteProject()">删除当前项目</button></div></aside>
+<section class="studio">
+<div class="titlebar"><div><h2 id="projectTitle">未命名视频</h2><small id="projectMeta">按顺序完成七个制作步骤</small></div><span class="badge" id="saveState">已保存</span></div>
+<nav class="pipeline" id="pipeline" aria-label="制作流程"></nav>
+<div id="workarea">
+<div class="stagebar"><div><span class="eyebrow" id="stageNumber">STEP 01</span><h3 id="stageTitle">生成脚本</h3></div><div class="stageactions"><button id="autoBtn" onclick="runAll()">连续生成至声音</button><button id="nextBtn" class="primary" onclick="nextAction()">生成脚本 →</button></div></div>
+<div id="stageError" class="error-box" role="alert" hidden></div>
+<section id="documentPanel" class="document-panel"></section>
+<section id="previewPanel" hidden>
+<div class="toolbar"><span class="label" id="previewLabel">视频预览</span><button id="subBtn" class="on" onclick="toggleSubs()">▤ 字幕</button><button onclick="fullScreen()">⛶ 全屏</button><button id="exportBtn" onclick="exportVideo()" disabled>↥ 录屏输出</button></div>
+<div class="screenwrap"><div class="screen" id="screen"><canvas id="video" width="1280" height="720"></canvas><div id="htmlFrames"></div><div id="subtitle" class="subtitle-overlay"></div><div id="previewEmpty" class="preview-empty">完成分镜画面生成后，这里将呈现你的故事。</div></div><div class="controls"><button class="play" id="playBtn" onclick="togglePlay()" aria-label="播放或暂停">▶</button><span id="time">00:00 / 00:00</span><input id="seek" type="range" min="0" max="24" step="0.05" value="0" aria-label="播放进度"><span>16:9 · 720p</span></div></div>
+<div class="scenehead"><span>故事分镜 <span id="sceneCount"></span></span><small>点击预览 · 下方编辑内容</small></div><div class="scenes" id="scenes"></div>
+<div id="sceneEditor" class="scene-editor"></div>
+<div class="audio-row"><span style="color:#b3f36b">♫</span><div><strong id="musicLabel">背景音乐</strong><div class="hint">配音随分镜自动播放 · 配乐已混音</div></div><select id="musicStyle" aria-label="背景音乐类型" onchange="changeMusic(this.value)"><option value="gentle">轻柔氛围</option><option value="bright">明亮和弦</option><option value="none">无背景音乐</option></select></div>
+<div class="review-box" id="reviewBox" hidden><strong>画面、声音，都准备好了吗？</strong><p>检查分镜内容、字幕、配音和配乐。需要调整时可以返回画面生成；修改后将重新生成声音。</p><label><input id="reviewCheck" type="checkbox"> 我已检查预览，可以录屏输出</label><button class="primary" id="confirmReview" onclick="confirmReview()">确认预览 →</button></div>
+<div id="exportPanel" class="export-panel"></div>
+</section></div>
+</section>
+<aside class="chat"><div class="chathead"><span class="mini">✦</span><strong>创作助手</strong><span id="agentMode">本地模式</span></div><div class="chatlog" id="chatlog"></div><div class="composer"><div class="composer-label" id="composerLabel">输入创意，开始生成脚本</div><form onsubmit="sendPrompt(event)"><div class="inputbox"><textarea id="prompt" maxlength="3000" placeholder="例如：制作一支关于周末山野旅行的治愈短片…" aria-label="创作提示词"></textarea><div class="inputbottom"><span>Enter 发送 · Shift + Enter 换行</span><button class="primary" id="sendBtn" type="submit" aria-label="发送创意">↑</button></div></div></form><div class="hint" id="chatHint">每一步完成后，可检查和编辑结果。</div></div></aside>
+</main><div class="toast" id="toast" role="status"></div>
+<dialog id="confirmDialog"><h3 id="dialogTitle"></h3><p id="dialogMessage"></p><div><button onclick="closeDialog(false)">取消</button><button class="primary" onclick="closeDialog(true)">确认</button></div></dialog>
+<dialog id="videoDialog" style="max-width:1000px;width:90vw"><h3>已导出视频</h3><video id="exportPlayer" controls style="width:100%;max-height:65vh;background:#000"></video><div><button onclick="closeExportPlayer()">关闭预览</button></div></dialog>
+<script src="/app.js"></script></body></html>
