@@ -93,7 +93,7 @@ function renderPreview(){
   $('exportBtn').disabled=!done('review')||busy||project.busy;
   $('exportBtn').textContent=recording?'■ 取消录制':'↥ 录屏输出';
   $('musicStyle').value=project.musicStyle;$('musicStyle').disabled=busy||recording||!done('visuals');
-  $('musicLabel').textContent=done('audio')?'旁白已生成 · '+(project.music?'配乐已就绪':'无背景音乐'):'声音待生成';
+  $('musicLabel').textContent=done('audio')?((project.scenes.some(s=>s.audio&&s.audio.source==='silent')?'画面与字幕已就绪 · 当前服务器无中文语音（静音占位，Windows 本机运行可启用真人配音）':'旁白已生成')+' · '+(project.music?'配乐已就绪':'无背景音乐')):'声音待生成';
   $('exportPanel').innerHTML=(view===6?`<h4>录屏输出</h4><p class="small-copy">${project.mode==='html'?'HTML 动画使用浏览器标签页录屏。请选择当前标签页，录制时预览会铺满页面；支持区域裁剪的浏览器会自动裁剪到画面。':'图片轮播直接录制 1280 × 720 画布。'} 导出包含字幕、真实旁白及配乐。保持页面在前台，按 Esc 可取消；文件保存为浏览器支持的 WebM 或 MP4。</p><button class="primary" onclick="exportVideo()" ${recording||busy?'disabled':''}>开始录屏 · ${clock(total())}</button>`:'')+(project.exports.length?`<h4>已导出文件 <span class="muted">/ 历史版本</span></h4>`+project.exports.map(e=>`<div class="export-item">▣<span>${new Date(e.at).toLocaleString()} · ${(e.bytes/1024/1024).toFixed(1)} MB<br>项目版本 ${e.revision}</span><button onclick="previewExport(&apos;${e.url}&apos;)">播放</button><a href="${e.url}" download>下载 ↗</a></div>`).join(''):'');
   syncMedia();
 }
@@ -205,4 +205,4 @@ async function finishExport(mime){
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&recording)stopRecording(false)});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(recording){stopRecording(false);notify('页面进入后台，录制已取消')}else pause()}});
 window.addEventListener('beforeunload',event=>{if(recording||busy||dirty){event.preventDefault();event.returnValue=''}});
-safely(async()=>{config=await api('/config');$('connection').textContent='后台已连接 · '+(config.provider==='demo'?'本地模式':'AI 网关');$('providerNote').textContent=config.provider==='demo'?'本地模板 + HTML 动画 + Windows 中文语音':'AI 生成网关已启用';$('providerSide').textContent=config.provider==='demo'?'本地模板 / Windows 中文语音':'AI 生成网关';$('agentMode').textContent=config.provider==='demo'?'本地模式':'AI 网关';$('chatHint').textContent=config.provider==='demo'?'本地模式不向外部服务发送创作内容。':'创作内容会发送至已配置的 AI 生成网关。';await refreshProjects()});
+safely(async()=>{config=await api('/config');$('connection').textContent='后台已连接 · '+(config.provider==='demo'?'本地模式':'AI 网关');$('providerNote').textContent=config.provider==='demo'?'本地模板 + HTML 动画 + Windows 中文语音':'AI 生成网关已启用';$('providerSide').textContent=config.provider==='demo'?'本地模板 / Windows 中文语音':'AI 生成网关';$('agentMode').textContent=config.provider==='demo'?'本地模式':'AI 网关';$('chatHint').textContent=config.provider==='demo'?'本地模式不向外部服务发送创作内容。':'创作内容会发送至已配置的 AI 生成网关。';await refreshProjects();const want=new URLSearchParams(location.search).get('project');if(want)await openProject(want)});

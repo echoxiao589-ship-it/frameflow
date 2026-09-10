@@ -7,10 +7,16 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { createStore, STEPS, LABELS, Problem, requireValue, textValue, invalidate, assertPrevious } from './lib/store.mjs';
 import { createProvider } from './lib/provider.mjs';
 import { finalizeWebm } from './lib/webm.mjs';
+import { createEnglishService } from './lib/english.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const dataRoot = resolve(process.env.DATA_DIR || join(root,'data'));
+// 监听地址：本地双击 start.cmd 时未注入 PORT，监听 127.0.0.1 且只放行本机（安全默认）；
+// 云平台 / 容器一定会注入 PORT，此时监听 0.0.0.0 并放行任意域名，供反向代理与公网访问。
+const bindHost = process.env.HOST || (process.env.PORT ? '0.0.0.0' : '127.0.0.1');
+const hostRules = (process.env.ALLOWED_HOSTS !== undefined ? process.env.ALLOWED_HOSTS : (bindHost === '0.0.0.0' ? '*' : '')).split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);
 const store = createStore(dataRoot), locks = new Set();
+const english = createEnglishService(dataRoot);
 const provider = createProvider(join(dataRoot,'assets'), { provider:process.env.AI_PROVIDER || 'demo', url:process.env.AI_GATEWAY_URL, key:process.env.AI_GATEWAY_KEY });
 requireValue(['demo','gateway'].includes(provider.kind),'AI_PROVIDER 只能为 demo 或 gateway');
 const types = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.webm':'video/webm','.mp4':'video/mp4'};
@@ -49,17 +55,29 @@ const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   try {
     const url=new URL(req.url,'http://localhost'),path=url.pathname;
-    // No cross-origin writes to this local service, including DNS-rebinding hosts.
-    const host=(req.headers.host||'').split(':')[0];
-    requireValue(['127.0.0.1','localhost',process.env.HOST||'127.0.0.1'].includes(host),'不允许的访问主机',403);
+    // 主机白名单：默认只放行本机（DNS 重绑定防护）。部署到服务器时把 HOST 设为 0.0.0.0，
+    // 即视为主动对外开放，自动放行任意域名；也可用 ALLOWED_HOSTS 精确指定，例如
+    // ALLOWED_HOSTS=example.com,www.example.com
+    const host=(req.headers.host||'').split(':')[0].toLowerCase();
+    const openHosts=hostRules.includes('*');
+    requireValue(openHosts||hostRules.includes(host)||['127.0.0.1','localhost',(bindHost||'127.0.0.1').toLowerCase()].includes(host),'不允许的访问主机',403);
     if(!['GET','HEAD'].includes(req.method)) {
-      if(req.headers.origin)requireValue(req.headers.origin===`http://${req.headers.host}`,'不允许跨站修改项目',403);
+      if(req.headers.origin){
+        let originHost='';try{originHost=new URL(req.headers.origin).host.toLowerCase()}catch{originHost=''}
+        // 反代后浏览器 Origin 为 https://域名，而 Host 为 域名，这里只比主机名以兼容 HTTPS 与端口差异
+        requireValue(openHosts||originHost===req.headers.host.toLowerCase(),'不允许跨站修改项目',403);
+      }
       requireValue(req.headers['x-frameflow-client']==='studio','缺少客户端标识',403);
     }
-    if(path==='/api/config'&&req.method==='GET')return reply(res,200,{provider:provider.kind,steps:STEPS,labels:LABELS,speech:provider.kind==='demo'?'Windows SAPI 中文语音':'生成网关',gatewayConfigured:!!process.env.AI_GATEWAY_URL});
+    if(path==='/api/config'&&req.method==='GET')return reply(res,200,{provider:provider.kind,steps:STEPS,labels:LABELS,speech:provider.kind==='demo'?(process.platform==='win32'?'Windows SAPI 中文语音':'静音占位（当前服务器无中文语音，可配置生成网关接入真人配音）'):'生成网关',gatewayConfigured:!!process.env.AI_GATEWAY_URL});
+    if(path==='/api/english/lessons'&&req.method==='GET')return reply(res,200,english.lessons());
+    const englishVoice=/^\/api\/english\/lessons\/([a-z-]+)\/voice$/.exec(path);
+    if(englishVoice&&req.method==='POST')return reply(res,200,await english.voice(englishVoice[1]));
     if(path==='/api/projects') {
       if(req.method==='GET')return reply(res,200,store.list().map(p=>({id:p.id,title:p.title,mode:p.mode,updatedAt:p.updatedAt,steps:p.steps,revision:p.revision})));
-      if(req.method==='POST'){const body=await json(req);const p=store.add(body.mode,body.prompt?textValue(body.prompt,'提示词',3000):'');return reply(res,201,publicProject(p))}
+      if(req.method==='POST'){const body=await json(req);const p=store.add(body.mode,body.prompt?textValue(body.prompt,'提示词',3000):'');
+        if(body.template==='essay'){requireValue(body.essay&&typeof body.essay==='object','作文讲解项目需要携带批改数据');const essay=JSON.parse(JSON.stringify(body.essay));requireValue(JSON.stringify(essay).length<200000,'批改数据过大',413);p.template='essay';p.essay=essay;store.touch(p)}
+        return reply(res,201,publicProject(p))}
     }
     const match=/^\/api\/projects\/([a-f0-9-]+)(?:\/(.*))?$/.exec(path);
     if(match){const p=store.get(match[1]),action=match[2];
@@ -95,11 +113,11 @@ const server=http.createServer(async(req,res)=>{
     }
     if(['GET','HEAD'].includes(req.method)){
       if(/^\/(assets|exports)\/[a-f0-9-]+\.(svg|png|jpg|webp|wav|webm|mp4)$/.test(path))return await serveFile(req,res,join(dataRoot,path.slice(1)),path.startsWith('/exports/'));
-      const allowed={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/style.css':'style.css','/base.css':'base.css'};
+      const allowed={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/style.css':'style.css','/base.css':'base.css','/english':'english.html','/english/':'english.html','/english.css':'english.css','/english.js':'english.js','/media-utils.js':'media-utils.js','/essay':'essay.html','/essay/':'essay.html','/essay.html':'essay.html'};
       if(allowed[path])return await serveFile(req,res,join(root,'public',allowed[path]));
     }
     throw new Problem(404,'接口或页面不存在');
   }catch(error){if(!res.headersSent)reply(res,error.status||500,{error:error.status?error.message:'服务器内部错误，请稍后重试'});else res.destroy();if(!error.status)console.error(error)}
 });
 server.requestTimeout=180000;
-server.listen(Number(process.env.PORT||4173),process.env.HOST||'127.0.0.1',()=>console.log(`Frameflow ready: http://${process.env.HOST||'127.0.0.1'}:${server.address().port} · ${provider.kind}`));
+server.listen(Number(process.env.PORT||4173),bindHost,()=>console.log(`Frameflow ready: http://${bindHost}:${server.address().port} · ${provider.kind} · hosts=${hostRules.join('|')||'local'}`));

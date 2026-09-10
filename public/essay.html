@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WriteRight · AI 英语作文智能批改系统</title>
+<style>
+:root{
+  --ink:#1f2933; --ink-2:#52606d; --ink-3:#7b8794;
+  --line:#e2e6ea; --bg:#f5f7f9; --card:#ffffff;
+  --brand:#2f5d8a; --brand-soft:#eaf2fa;
+  --ok:#2f8f6f; --ok-soft:#e8f6f1;
+  --warn:#c9812b; --warn-soft:#fdf3e5;
+  --bad:#c0392b; --bad-soft:#fdecea;
+  --purple:#6c5ca8; --purple-soft:#efedfa;
+  --radius:12px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.7}
+h1,h2,h3,h4{margin:0;font-weight:600;line-height:1.4}
+button{font-family:inherit;font-size:14px;cursor:pointer;border:none;border-radius:8px;padding:9px 16px;transition:.18s}
+input,select,textarea{font-family:inherit;font-size:14px;color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:9px 12px;background:#fff;outline:none;width:100%}
+input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(47,93,138,.1)}
+.btn-primary{background:var(--brand);color:#fff}
+.btn-primary:hover{background:#26507a}
+.btn-ghost{background:#fff;color:var(--ink-2);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--brand);color:var(--brand)}
+.btn-soft{background:var(--brand-soft);color:var(--brand)}
+.btn-soft:hover{background:#dbe9f7}
+.btn-sm{padding:5px 11px;font-size:13px;border-radius:7px}
+.btn-danger-soft{background:var(--bad-soft);color:var(--bad)}
+[hidden]{display:none !important}
+.muted{color:var(--ink-3)}
+.small{font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+
+/* ---------- 登录 ---------- */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(160deg,#eef4fa 0%,#f5f7f9 45%,#f0f6f3 100%);padding:24px}
+.login-box{width:100%;max-width:880px;background:#fff;border:1px solid var(--line);
+  border-radius:18px;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;box-shadow:0 18px 50px rgba(31,41,51,.09)}
+.login-hero{background:linear-gradient(165deg,#2f5d8a,#24496d);color:#fff;padding:44px 38px;display:flex;flex-direction:column;justify-content:space-between}
+.login-hero h1{font-size:25px;letter-spacing:.5px}
+.login-hero .tag{font-size:12px;letter-spacing:2px;opacity:.75;margin-bottom:14px}
+.login-hero p{font-size:14px;opacity:.9;margin:14px 0 0}
+.login-hero ul{margin:26px 0 0;padding:0;list-style:none;font-size:13.5px;opacity:.92}
+.login-hero li{padding:7px 0;border-bottom:1px solid rgba(255,255,255,.14)}
+.login-hero .foot{font-size:12px;opacity:.6;margin-top:26px}
+.login-form{padding:40px 38px}
+.tabs{display:flex;gap:6px;background:var(--bg);padding:5px;border-radius:10px;margin-bottom:22px}
+.tabs button{flex:1;background:transparent;color:var(--ink-2);padding:8px;font-size:13.5px;border-radius:7px}
+.tabs button.on{background:#fff;color:var(--brand);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;color:var(--ink-2);margin-bottom:6px}
+.form-tip{background:var(--brand-soft);color:#26507a;font-size:12.5px;padding:10px 12px;border-radius:9px;margin-top:16px;line-height:1.7}
+.err{color:var(--bad);font-size:13px;margin-top:10px;min-height:19px}
+
+/* ---------- 应用框架 ---------- */
+.topbar{height:58px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
+  padding:0 22px;gap:16px;position:sticky;top:0;z-index:40}
+.logo{font-weight:700;font-size:16.5px;color:var(--brand);letter-spacing:.3px;display:flex;align-items:center;gap:9px}
+.logo .mark{width:26px;height:26px;border-radius:7px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:13px}
+.nav{display:flex;gap:4px;margin-left:14px}
+.nav button{background:transparent;color:var(--ink-2);padding:8px 14px;border-radius:8px;font-size:14px}
+.nav button.on{background:var(--brand-soft);color:var(--brand);font-weight:600}
+.spacer{flex:1}
+.userchip{display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--ink-2)}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--purple-soft);color:var(--purple);
+  display:grid;place-items:center;font-size:13px;font-weight:600}
+.role-tag{font-size:11.5px;padding:2px 8px;border-radius:20px;background:var(--ok-soft);color:var(--ok)}
+.role-tag.teacher{background:var(--warn-soft);color:var(--warn)}
+
+.wrap{max-width:1400px;margin:0 auto;padding:22px}
+.grid-main{display:grid;grid-template-columns:420px 1fr;gap:20px;align-items:start}
+@media(max-width:1080px){.grid-main{grid-template-columns:1fr}.login-box{grid-template-columns:1fr}.login-hero{display:none}}
+
+.panel-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.panel-head h2{font-size:15.5px}
+.panel-body{padding:18px}
+.chip{font-size:12px;padding:2px 9px;border-radius:20px;background:var(--bg);color:var(--ink-2);border:1px solid var(--line)}
+
+textarea#essay{min-height:330px;line-height:1.85;resize:vertical;font-size:14.5px}
+.meta-row{display:flex;gap:12px;align-items:center;margin-top:10px;font-size:12.5px;color:var(--ink-3);flex-wrap:wrap}
+.btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.video-cta{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:16px;padding:15px 17px;border-radius:14px;
+  background:linear-gradient(120deg,#eaf6f3,#f7f2e5);border:1px solid #d5e5e0}
+.video-cta .vc-ico{width:44px;height:44px;flex:none;border-radius:12px;background:#0f3d3a;color:#7fd1c0;
+  display:flex;align-items:center;justify-content:center;font-size:21px}
+.video-cta .vc-txt{flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px}
+.video-cta .vc-txt b{font-size:15px;color:#12262c}
+.video-cta .vc-txt span{font-size:12.5px;color:#5b6b72;line-height:1.55}
+.btn-lg{width:100%;justify-content:center;padding:12px;font-size:15px;font-weight:600}
+
+/* 分析动画 */
+.steps{margin-top:16px}
+.step{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:13.5px;color:var(--ink-3)}
+.step .dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);flex:none}
+.step.run{color:var(--brand)}
+.step.run .dot{border-color:var(--brand);border-top-color:transparent;animation:spin .7s linear infinite}
+.step.done{color:var(--ok)}
+.step.done .dot{border-color:var(--ok);background:var(--ok);position:relative}
+.step.done .dot::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;
+  border-right:2px solid #fff;border-bottom:2px solid #fff;transform:rotate(40deg)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 结果区 */
+.rtabs{display:flex;gap:2px;border-bottom:1px solid var(--line);padding:0 14px;background:#fff;
+  border-radius:12px 12px 0 0;overflow-x:auto}
+.rtabs button{background:transparent;color:var(--ink-2);padding:13px 15px;border-radius:0;font-size:14px;
+  border-bottom:2px solid transparent;white-space:nowrap}
+.rtabs button.on{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+.rbody{padding:20px}
+.empty-state{text-align:center;padding:70px 20px;color:var(--ink-3)}
+.empty-state .big{font-size:38px;margin-bottom:12px;opacity:.35}
+
+/* 总评 */
+.score-row{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+.ring{width:132px;height:132px;flex:none;position:relative}
+.ring svg{transform:rotate(-90deg)}
+.ring .val{position:absolute;inset:0;display:grid;place-items:center;flex-direction:column;text-align:center}
+.ring .num{font-size:34px;font-weight:700;color:var(--brand);line-height:1}
+.ring .cap{font-size:11.5px;color:var(--ink-3);letter-spacing:1px}
+.badge-cefr{display:inline-flex;align-items:center;gap:8px;background:var(--purple-soft);color:var(--purple);
+  padding:6px 14px;border-radius:20px;font-size:13.5px;font-weight:600}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:10px;margin-top:18px}
+.stat{background:var(--bg);border-radius:10px;padding:12px 14px}
+.stat .k{font-size:12px;color:var(--ink-3)}
+.stat .v{font-size:19px;font-weight:600;margin-top:2px}
+.dims{margin-top:20px}
+.dim{display:grid;grid-template-columns:96px 1fr 44px;align-items:center;gap:12px;margin-bottom:11px;font-size:13.5px}
+.bar{height:8px;background:var(--bg);border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px;background:var(--brand);transition:width .8s ease}
+.bar.g i{background:var(--ok)} .bar.w i{background:var(--warn)} .bar.b i{background:var(--bad)}
+.dim .n{text-align:right;font-weight:600}
+.summary-block{margin-top:22px;padding:18px;background:var(--bg);border-radius:11px;font-size:14.5px}
+.summary-block h3{font-size:14px;margin-bottom:9px;color:var(--brand)}
+.summary-block p{margin:0 0 10px}
+.ul-clean{margin:6px 0 0;padding-left:20px}
+.ul-clean li{margin:5px 0;font-size:14px}
+
+/* 留痕 */
+.sent-list{display:flex;flex-direction:column;gap:12px}
+.sent{border:1px solid var(--line);border-radius:11px;padding:14px 16px;background:#fff}
+.sent.bad{border-left:3px solid var(--bad)}
+.sent.warn{border-left:3px solid var(--warn)}
+.sent.good{border-left:3px solid var(--ok)}
+.sent-top{display:flex;align-items:center;gap:9px;margin-bottom:8px;font-size:12.5px;color:var(--ink-3)}
+.sent-body{font-family:Georgia,"Times New Roman",serif;font-size:16.5px;line-height:2.05}
+.sent-note{margin-top:9px;font-size:13px;color:var(--ink-2);background:var(--bg);border-radius:8px;padding:9px 11px}
+del.fix{color:var(--bad);text-decoration:line-through;text-decoration-thickness:1.5px;
+  background:var(--bad-soft);border-radius:3px;padding:0 2px;cursor:help;position:relative}
+ins.fix{color:#1c6b52;text-decoration:none;background:var(--ok-soft);border-radius:3px;
+  padding:0 2px;font-weight:600;cursor:help;position:relative}
+del.fix:hover::after,ins.fix:hover::after{content:attr(data-tip);position:absolute;left:0;bottom:135%;
+  background:#22303c;color:#fff;font-size:12.5px;font-weight:400;font-family:-apple-system,"Microsoft YaHei",sans-serif;
+  padding:7px 11px;border-radius:8px;white-space:normal;width:max-content;max-width:300px;line-height:1.6;
+  z-index:30;box-shadow:0 6px 20px rgba(0,0,0,.2)}
+.legend{display:flex;gap:18px;font-size:12.5px;color:var(--ink-2);margin-bottom:14px;flex-wrap:wrap}
+.legend span{display:flex;align-items:center;gap:6px}
+.swatch{width:15px;height:15px;border-radius:4px;display:inline-block}
+
+/* 问题清单 */
+.cat-block{margin-bottom:14px;border:1px solid var(--line);border-radius:11px;overflow:hidden}
+.cat-head{padding:12px 15px;background:var(--bg);display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:600;cursor:pointer}
+.cat-head .cnt{margin-left:auto;font-size:12.5px;color:#fff;background:var(--ink-3);border-radius:20px;
+  padding:1px 9px;font-weight:500}
+.cat-head .cnt.high{background:var(--bad)} .cat-head .cnt.mid{background:var(--warn)} .cat-head .cnt.low{background:var(--ok)}
+.issue{padding:13px 15px;border-top:1px solid var(--line);font-size:14px}
+.issue .q{font-family:Georgia,serif;font-size:15px}
+.issue .arrow{color:var(--ink-3);margin:0 8px}
+.issue .a{font-family:Georgia,serif;font-size:15px;color:#1c6b52;font-weight:600}
+.issue .ex{margin-top:7px;font-size:13px;color:var(--ink-2);background:var(--brand-soft);
+  color:#26507a;padding:8px 11px;border-radius:8px}
+.issue .strike{text-decoration:line-through;color:var(--bad)}
+
+/* 对照 */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.compare{grid-template-columns:1fr}}
+.compare h3{font-size:14px;margin-bottom:9px;color:var(--ink-2)}
+.paper{background:#fff;border:1px solid var(--line);border-radius:11px;padding:16px;
+  font-family:Georgia,serif;font-size:15.5px;line-height:1.95;white-space:pre-wrap;max-height:520px;overflow:auto}
+.paper.clean{background:#fbfdfb}
+
+/* 设置 */
+.setting-row{margin-bottom:18px}
+.setting-row label{display:block;font-size:13.5px;font-weight:600;margin-bottom:6px}
+.setting-row .hint{font-size:12.5px;color:var(--ink-3);margin-top:5px;line-height:1.7}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 14px;font-size:13.5px}
+
+/* 教师端 */
+table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+table.tbl th{text-align:left;padding:11px 12px;background:var(--bg);color:var(--ink-2);font-weight:600;
+  border-bottom:1px solid var(--line);white-space:nowrap}
+table.tbl td{padding:11px 12px;border-bottom:1px solid var(--line)}
+table.tbl tr:hover td{background:#fafcfd}
+.pill{font-size:12px;padding:2px 10px;border-radius:20px;font-weight:600;display:inline-block}
+.pill.g{background:var(--ok-soft);color:var(--ok)} .pill.w{background:var(--warn-soft);color:var(--warn)}
+.pill.b{background:var(--bad-soft);color:var(--bad)}
+.dist{display:flex;gap:8px;height:9px;border-radius:6px;overflow:hidden;margin-top:6px}
+.dist i{display:block;height:100%}
+
+/* 其他 */
+.toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%);background:#22303c;color:#fff;
+  padding:11px 20px;border-radius:10px;font-size:13.5px;z-index:99;opacity:0;transition:.3s;pointer-events:none}
+.toast.on{opacity:1;bottom:44px}
+.ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:20px;
+  background:var(--purple-soft);color:var(--purple);font-weight:600}
+.ai-badge.local{background:var(--bg);color:var(--ink-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+@media print{
+  .topbar,.rtabs,.login-wrap,.btn-row,.legend,button{display:none !important}
+  body{background:#fff}.card{border:none}
+}
+/* 讲解视频生成面板 */
+.vpanel{position:fixed;right:26px;bottom:26px;width:352px;background:#fff;border:1px solid #e2e6ea;
+  border-radius:14px;box-shadow:0 14px 34px rgba(28,45,66,.16);padding:16px 18px;z-index:200}
+.vpanel h4{margin:0 0 8px;font-size:14px;color:#1c2d42}
+.vpanel .vmsg{font-size:13px;line-height:1.65;color:#52606d;margin:0 0 10px;word-break:break-word}
+.vpanel .vbar{height:6px;border-radius:999px;background:#eef1f4;overflow:hidden}
+.vpanel .vbar i{display:block;height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,#2f5d8a,#6c5ca8);transition:width .45s ease}
+.vpanel.done .vbar i{background:linear-gradient(90deg,#2f8f6f,#4fb98d)}
+.vpanel.fail .vbar i{background:#c0392b}
+.vpanel .vactions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.vpanel .vactions button{font-size:13px;padding:8px 14px}
+</style>
+</head>
+<body>
+
+<!-- ======== 登录页 ======== -->
+<div class="login-wrap" id="loginView">
+  <div class="login-box">
+    <div class="login-hero">
+      <div>
+        <div class="tag">AI-POWERED WRITING FEEDBACK</div>
+        <h1>WriteRight<br>AI 英语作文智能批改</h1>
+        <p>提交作文，30 秒拿到总评、逐句留痕与改进建议。</p>
+        <ul>
+          <li>整体评价 · 分数与 CEFR 等级</li>
+          <li>逐句留痕 · 像 Word 修订一样看得见</li>
+          <li>分类讲解 · 语法 / 用词 / 句型 / 标点</li>
+          <li>学习档案 · 记录每次进步</li>
+        </ul>
+      </div>
+      <div class="foot">Education Technology · Project 3</div>
+    </div>
+    <div class="login-form">
+      <div class="tabs" id="roleTabs">
+        <button class="on" data-role="student">我是学生</button>
+        <button data-role="teacher">我是教师</button>
+      </div>
+      <div class="field"><label>账号</label><input id="loginUser" placeholder="请输入账号" autocomplete="username"></div>
+      <div class="field"><label>密码</label><input id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
+      <div class="err" id="loginErr"></div>
+      <button class="btn-primary btn-lg" id="loginBtn">登 录</button>
+      <button class="btn-ghost btn-lg" id="registerBtn" style="margin-top:10px">注册新账号</button>
+      <div class="form-tip">
+        <b>演示账号</b>（点一下自动填入）<br>
+        <a href="javascript:;" data-fill="stu01|123456">学生：stu01 / 123456</a><br>
+        <a href="javascript:;" data-fill="teacher|123456">教师：teacher / 123456</a>
+        <br><a href="/" id="backStudio2" hidden>← 返回视频工作台（帧序 FrameFlow）</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ======== 主应用 ======== -->
+<div id="app" hidden>
+  <div class="topbar">
+    <div class="logo"><span class="mark">W</span>WriteRight</div>
+    <div class="nav" id="nav">
+      <button class="on" data-view="correct">作文批改</button>
+      <button data-view="history">我的档案</button>
+      <button data-view="class" class="teacher-only" hidden>班级管理</button>
+      <button data-view="settings">系统设置</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="userchip">
+      <span id="userName">—</span>
+      <span class="role-tag" id="userRole">学生</span>
+      <div class="avatar" id="userAvatar">S</div>
+    </div>
+    <button class="btn-ghost btn-sm" id="backStudio" hidden>← 返回视频工作台</button>
+    <button class="btn-ghost btn-sm" id="logoutBtn">退出</button>
+  </div>
+
+  <div class="wrap">
+    <!-- 作文批改 -->
+    <section id="view-correct">
+      <div class="grid-main">
+        <!-- 左：输入 -->
+        <div class="card">
+          <div class="panel-head">
+            <h2>提交作文</h2>
+            <span class="chip" id="modeChip">本地引擎</span>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label>作文题目（选填）</label>
+              <input id="essayTitle" placeholder="例如：The Importance of Learning English">
+            </div>
+            <label class="small muted" style="display:block;margin-bottom:6px">作文正文（英文）</label>
+            <textarea id="essay" placeholder="在这里粘贴或输入你的英文作文……"></textarea>
+            <div class="meta-row">
+              <span id="wordCount">0 词</span><span>·</span><span id="sentCount">0 句</span>
+              <span style="margin-left:auto">
+                <a href="javascript:;" id="loadSample">载入示例作文</a> ·
+                <a href="javascript:;" id="clearEssay">清空</a>
+              </span>
+            </div>
+            <div class="btn-row">
+              <button class="btn-primary btn-lg" id="analyzeBtn">开始智能批改</button>
+            </div>
+            <div class="steps" id="steps" hidden></div>
+          </div>
+        </div>
+
+        <!-- 右：结果 -->
+        <div class="card">
+          <div class="rtabs" id="rtabs">
+            <button class="on" data-tab="overview">总评</button>
+            <button data-tab="trace">逐句留痕</button>
+            <button data-tab="issues">问题清单</button>
+            <button data-tab="advice">提升建议</button>
+            <button data-tab="compare">修改对照</button>
+          </div>
+          <div class="rbody" id="resultBody">
+            <div class="empty-state">
+              <div class="big">✎</div>
+              <p>左侧输入英文作文，点击「开始智能批改」</p>
+              <p class="small">系统会给出总分、CEFR 等级、逐句修改留痕与分类讲解</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 我的档案 -->
+    <section id="view-history" hidden>
+      <div class="card">
+        <div class="panel-head"><h2>我的写作档案</h2><span class="chip" id="histCount">0 篇</span>
+          <div class="spacer"></div>
+          <button class="btn-ghost btn-sm" id="seedDemo">载入示例数据</button>
+        </div>
+        <div class="panel-body" id="historyBody"></div>
+      </div>
+    </section>
+
+    <!-- 班级管理 -->
+    <section id="view-class" hidden>
+      <div class="card" style="margin-bottom:18px">
+        <div class="panel-head"><h2>班级整体学情</h2></div>
+        <div class="panel-body" id="classStats"></div>
+      </div>
+      <div class="card">
+        <div class="panel-head"><h2>全部提交记录</h2><span class="chip" id="classCount">0 篇</span></div>
+        <div class="panel-body" id="classTable"></div>
+      </div>
+    </section>
+
+    <!-- 系统设置 -->
+    <section id="view-settings" hidden>
+      <div class="grid-main">
+        <div class="card">
+          <div class="panel-head"><h2>AI 引擎设置</h2></div>
+          <div class="panel-body">
+            <div class="setting-row">
+              <label>批改模式</label>
+              <select id="setMode">
+                <option value="local">本地规则引擎（无需联网，随时可用）</option>
+                <option value="ai">接入大模型 API（评价更深入）</option>
+                <option value="both">两者结合（推荐：AI 为主 + 本地规则补充）</option>
+              </select>
+              <div class="hint">演示、答辩建议使用「本地规则引擎」，不依赖网络和密钥。</div>
+            </div>
+            <div class="setting-row">
+              <label>服务商预设</label>
+              <select id="setPreset">
+                <option value="">— 选择后自动填入地址 —</option>
+                <option value="deepseek">DeepSeek（api.deepseek.com）</option>
+                <option value="openai">OpenAI（api.openai.com）</option>
+                <option value="dashscope">阿里通义（dashscope）</option>
+                <option value="zhipu">智谱 GLM（open.bigmodel.cn）</option>
+                <option value="custom">自定义 / 本地模型</option>
+              </select>
+            </div>
+            <div class="setting-row"><label>接口地址 Base URL</label>
+              <input id="setBase" placeholder="https://api.deepseek.com/v1"></div>
+            <div class="setting-row"><label>模型名称 Model</label>
+              <input id="setModel" placeholder="deepseek-chat"></div>
+            <div class="setting-row"><label>API Key</label>
+              <input id="setKey" type="password" placeholder="sk-..."></div>
+            <div class="btn-row">
+              <button class="btn-primary" id="saveSettings">保存设置</button>
+              <button class="btn-ghost" id="testAI">测试连接</button>
+            </div>
+            <div class="hint" id="aiTestMsg" style="margin-top:10px"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="panel-head"><h2>使用与配置说明</h2></div>
+          <div class="panel-body">
+            <div class="kv">
+              <b>本地引擎</b><span class="muted">内置 40+ 条语言规则，覆盖拼写、冠词、主谓一致、时态、搭配、标点、句式等，离线可用。</span>
+              <b>AI 增强</b><span class="muted">填写任意兼容 OpenAI 协议的接口即可。密钥只保存在本机浏览器，不会上传到别处。</span>
+              <b>数据存放</b><span class="muted">所有作文与账号保存在浏览器本地（localStorage），换浏览器或清理缓存会丢失。</span>
+              <b>多人在线</b><span class="muted">当前为单机演示版。要让真实学生从不同电脑登录，需要部署后端服务，见项目 README。</span>
+            </div>
+            <hr style="border:none;border-top:1px solid var(--line);margin:18px 0">
+            <button class="btn-danger-soft btn-sm" id="wipeData">清空本机所有数据</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="vpanel" id="videoPanel" hidden>
+  <h4>🎬 讲解视频 · 视频 Agent</h4>
+  <p class="vmsg" id="videoMsg">准备中…</p>
+  <div class="vbar"><i id="videoBar"></i></div>
+  <div class="vactions" id="videoActions" hidden></div>
+</div>
+
+<script>
+/* =========================================================
+   1. 工具函数
+   ========================================================= */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s == null ? '' : s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const round = n => Math.round(n);
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove('on'), 2600);
+}
+
+/* =========================================================
+   2. 本地存储（模拟数据库）
+   ========================================================= */
+const DB = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+  set(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+};
+const K_USERS = 'wr_users', K_SUBS = 'wr_subs', K_SESSION = 'wr_session', K_SET = 'wr_settings';
+
+function initUsers() {
+  let u = DB.get(K_USERS, null);
+  if (!u) {
+    u = [
+      { user: 'stu01', pass: '123456', name: '张小语', role: 'student', cls: '英语 2024 级 1 班' },
+      { user: 'stu02', pass: '123456', name: '李思远', role: 'student', cls: '英语 2024 级 1 班' },
+      { user: 'teacher', pass: '123456', name: '王老师', role: 'teacher', cls: '英语 2024 级 1 班' }
+    ];
+    DB.set(K_USERS, u);
+  }
+  return u;
+}
+let USERS = initUsers();
+let SUBS = DB.get(K_SUBS, []);
+let SETTINGS = DB.get(K_SET, { mode: 'local', base: '', model: '', key: '' });
+let SESSION = DB.get(K_SESSION, null);
+let CURRENT = null;       // 当前批改结果
+let CUR_VIEW = 'correct';
+let CUR_TAB = 'overview';
+
+/* =========================================================
+   3. 语言规则引擎（核心）
+   每条规则返回 [{start, end, replacement, tip, cat, label, sev}]
+   sev: 3 = 严重（语法/拼写） 2 = 中等（搭配/用词） 1 = 轻微（标点/风格）
+   ========================================================= */
+
+const SPELL = {
+  recieve:'receive',becuase:'because',becasue:'because',alot:'a lot',definately:'definitely',
+  enviroment:'environment',goverment:'government',seperate:'separate',wich:'which',thier:'their',
+  teh:'the',adn:'and',occured:'occurred',begining:'beginning',writting:'writing',arguement:'argument',
+  neccessary:'necessary',tommorow:'tomorrow',beleive:'believe',freind:'friend',studing:'studying',
+  univercity:'university',diffcult:'difficult',diffrent:'different',probaly:'probably',som:'some',
+  sience:'science',opionion:'opinion',improtant:'important',intresting:'interesting',knowlege:'knowledge',
+  langauge:'language',grammer:'grammar',vocaburary:'vocabulary',achive:'achieve',commuicate:'communicate',
+  oppotunity:'opportunity',experiance:'experience',develope:'develop',sutdy:'study',teached:'taught',
+  speek:'speak',writen:'written',wented:'went',taked:'took',gived:'gave',getted:'got',maked:'made',
+  thinked:'thought',buyed:'bought',bringed:'brought',childs:'children',peoples:'people',
+  informations:'information',advices:'advice',homeworks:'homework',knowledges:'knowledge',
+  equipments:'equipment',researches:'research',comunication:'communication',enviromental:'environmental',
+  tecnology:'technology',questionaire:'questionnaire',reccomend:'recommend',untill:'until'
+};
+
+const CN_PUNCT = { '，':',','。':'.','；':';','：':':','！':'!','？':'?','、':',','（':'(','）':')',
+  '【':'[','】':']','“':'"','”':'"','‘':"'",'’':"'",'…':'...','—':'—' };
+
+const ADV_VOWEL = /^(uni|use|user|usual|unique|unit|united|uniform|union|euro|one|uk)/i;
+const AN_EXCEPT = /^(hour|honest|honor|honour|heir)/i;
+
+const SING_SUBJ = '(?:he|she|it|this|that|everyone|everybody|someone|somebody|nobody|each|one)';
+const SING_VERB = { are:'is', were:'was', have:'has', do:'does', "don't":"doesn't", "doesn't":"doesn't",
+  go:'goes', like:'likes', need:'needs', want:'wants', make:'makes', think:'thinks', know:'knows',
+  say:'says', get:'gets', become:'becomes', help:'helps', play:'plays', study:'studies', live:'lives',
+  work:'works', learn:'learns', use:'uses', take:'takes', give:'gives', find:'finds', feel:'feels',
+  keep:'keeps', show:'shows', remember:'remembers', improve:'improves', mean:'means' };
+const PLUR_SUBJ = '(?:they|we|you|students|people|children|teachers|friends|parents|scholars)';
+const PLUR_VERB = { is:'are', was:'were', has:'have', does:'do', goes:'go', likes:'like', needs:'need',
+  wants:'want', makes:'make', thinks:'think', knows:'know', helps:'help', plays:'play', studies:'study',
+  works:'work', learns:'learn', uses:'use', takes:'take', gives:'give', finds:'find', feels:'feel',
+  keeps:'keeps', shows:'show' };
+
+const PAST = { go:'went', come:'came', see:'saw', eat:'ate', take:'took', make:'made', do:'did',
+  have:'had', is:'was', are:'were', get:'got', buy:'bought', write:'wrote', speak:'spoke', say:'said',
+  think:'thought', feel:'felt', find:'found', know:'knew', meet:'met', learn:'learned', study:'studied' };
+
+const CONNECTIVES = ['however','therefore','moreover','furthermore','in addition','for example','for instance',
+  'first','second','third','finally','in conclusion','on the other hand','as a result','besides','meanwhile',
+  'in other words','to sum up','overall','thus','consequently','nevertheless'];
+const SUBORDINATORS = /\b(because|although|though|even though|when|while|if|since|unless|after|before|as soon as|so that)\b/gi;
+
+const WORD_STOP = new Set(('the a an and or but so of to in on at for with by from as is are was were be been ' +
+  'it its this that these those i you he she they we my your his her their our not no do does did have has had ' +
+  'will would can could should may might must there here what which who when where how very more most also than ' +
+  'then them him me us if because about into over such only some any all both each other').split(' '));
+
+function eachMatch(text, re, cb, out) {
+  re.lastIndex = 0;
+  let m, guard = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (guard++ > 5000) break;
+    const r = cb(m, text);
+    if (r) {
+      out.push({ start: m.index, end: m.index + m[0].length, cat: 'grammar', label: '语法', sev: 2, ...r });
+    }
+    if (m.index === re.lastIndex) re.lastIndex++;
+  }
+}
+
+/* ---- 各类规则 ---- */
+function ruleSpelling(text, out) {
+  eachMatch(text, /\b[A-Za-z]{2,}\b/g, m => {
+    const w = m[0], low = w.toLowerCase();
+    if (!SPELL[low]) return null;
+    const fix = /^[A-Z]/.test(w)
+      ? SPELL[low].charAt(0).toUpperCase() + SPELL[low].slice(1)
+      : SPELL[low];
+    return { replacement: fix, cat: 'spelling', label: '拼写', sev: 3,
+      tip: '拼写错误：「' + w + '」应为「' + fix + '」。建议把这类词加入个人生词本。' };
+  }, out);
+}
+
+function ruleArticle(text, out) {
+  eachMatch(text, /\b([Aa])n?\s+([A-Za-z]+)/g, m => {
+    const art = m[1], word = m[2];
+    const needAn = /^[aeiou]/i.test(word) && !ADV_VOWEL.test(word);
+    const isAn = /n$/i.test(art);
+    if (needAn && !isAn) {
+      return { start: m.index, end: m.index + art.length, replacement: art + 'n',
+        cat: 'grammar', label: '冠词', sev: 3,
+        tip: '元音音素开头的词前用 an：「an ' + word + '」。' };
+    }
+    if (!needAn && isAn && !AN_EXCEPT.test(word)) {
+      return { start: m.index, end: m.index + art.length, replacement: art.charAt(0),
+        cat: 'grammar', label: '冠词', sev: 3,
+        tip: '辅音音素开头的词前用 a：「a ' + word + '」。' };
+    }
+    return null;
+  }, out);
+}
+
+function ruleSVA(text, out) {
+  eachMatch(text, new RegExp('\\b(' + SING_SUBJ + ')\\s+([a-z\']+)', 'gi'), m => {
+    const v = m[2].toLowerCase();
+    if (!SING_VERB[v]) return null;
+    const fix = SING_VERB[v];
+    return { start: m.index + m[0].length - m[2].length, end: m.index + m[0].length,
+      replacement: fix, cat: 'grammar', label: '主谓一致', sev: 3,
+      tip: '主谓一致：第三人称单数主语后动词要变化，「' + m[1] + ' ' + v + '」→「' + m[1] + ' ' + fix + '」。' };
+  }, out);
+
+  eachMatch(text, new RegExp('\\b(' + PLUR_SUBJ + ')\\s+([a-z\']+)', 'gi'), m => {
+    const v = m[2].toLowerCase();
+    if (!PLUR_VERB[v]) return null;
+    const fix = PLUR_VERB[v];
+    return { start: m.index + m[0].length - m[2].length, end: m.index + m[0].length,
+      replacement: fix, cat: 'grammar', label: '主谓一致', sev: 3,
+      tip: '主谓一致：复数主语后用动词原形，「' + m[1] + ' ' + v + '」→「' + m[1] + ' ' + fix + '」。' };
+  }, out);
+
+  eachMatch(text, /\b(I)\s+(is|was|has|does)\b/gi, m => {
+    const map = { is:'am', was:'was', has:'have', does:'do' };
+    return { start: m.index + m[1].length + 1, end: m.index + m[0].length,
+      replacement: map[m[2].toLowerCase()], cat: 'grammar', label: '主谓一致', sev: 3,
+      tip: '主语 I 搭配 be 动词 am / have / do。' };
+  }, out);
+
+  eachMatch(text, /\bthere\s+(is|was)\s+(many|several|two|three|four|five|lots|a lot of|numerous|some)\b/gi, m => {
+    const map = { is:'are', was:'were' };
+    return { start: m.index + 6, end: m.index + 6 + m[1].length, replacement: map[m[1].toLowerCase()],
+      cat: 'grammar', label: '主谓一致', sev: 3,
+      tip: '「there be」结构中，后面是复数名词时用 are / were。' };
+  }, out);
+}
+
+function ruleTense(text, out) {
+  eachMatch(text, /\bI\s+am\s+agree\b/gi, () => ({
+    cat: 'grammar', label: '时态与动词', sev: 3,
+    tip: 'agree 是动词，不需要 be 动词：「I agree」。'
+  }), out);
+
+  eachMatch(text, /\bin\s+(last|next)\s+(year|month|week|summer)\b/gi, m => {
+    let rep = m[0].replace(/^in\s+/i, '');
+    const before = text.slice(0, m.index).replace(/\s+$/, '');
+    const atStart = !before || /[.!?\n"']$/.test(before);
+    if (atStart) rep = rep.charAt(0).toUpperCase() + rep.slice(1);
+    return {
+      replacement: rep, cat: 'grammar', label: '时态与介词', sev: 2,
+      tip: 'last / next 前面不加 in：「' + m[0] + '」→「' + rep + '」。'
+    };
+  }, out);
+
+  eachMatch(text, /\bsince\s+(\d+)\s+(years?|months?|weeks?|days?)\b/gi, m => ({
+    replacement: 'for ' + m[1] + ' ' + m[2], cat: 'grammar', label: '时态与介词', sev: 2,
+    tip: '表示一段持续时间用 for；since 后面接时间点（如 since 2020）。'
+  }), out);
+
+  eachMatch(text, /\b(yesterday|last\s+(?:night|week|month|year|summer))\b([^.!?\n]{0,50}?)\b(go|come|see|eat|take|make|do|have|is|are|get|write|speak|say|think|feel|find|know|meet)\b/gi, m => {
+    const v = m[3].toLowerCase();
+    const past = PAST[v]; if (!past) return null;
+    const vs = m.index + m[0].toLowerCase().lastIndexOf(v);
+    return { start: vs, end: vs + m[3].length, replacement: past,
+      cat: 'grammar', label: '时态', sev: 3,
+      tip: '句中出现 ' + m[1] + '（过去时间），动词应使用过去式：「' + v + '」→「' + past + '」。' };
+  }, out);
+
+  eachMatch(text, /\b(must|should|could|would|will|can|may|might|to)\s+to\s+\b/gi, m => ({
+    start: m.index, end: m.index + m[0].length - 1, replacement: m[1],
+    cat: 'grammar', label: '情态动词', sev: 3,
+    tip: '情态动词 / to 后面直接跟动词原形，不能再加 to。'
+  }), out);
+
+  eachMatch(text, /\b(must|can|should)\s+\1\b/gi, m => ({
+    start: m.index, end: m.index + m[0].length, replacement: m[1],
+    cat: 'grammar', label: '情态动词', sev: 2, tip: '重复的情态动词，保留一个即可。'
+  }), out);
+
+  eachMatch(text, /\bmust\s+can\b/gi, () => ({
+    replacement: 'must be able to', cat: 'grammar', label: '情态动词', sev: 3,
+    tip: '两个情态动词不能连用：「must can」应改为「must be able to」或直接使用「can」。'
+  }), out);
+
+  eachMatch(text, /\b(want|need|hope|plan|decide|try|begin|start|like|love|would like)\s+to\s+([a-z]{3,})ing\b/gi, m => {
+    const base = m[2].replace(/e$/, '');
+    return { replacement: m[0].replace(/to\s+[a-z]{3,}ing/i, 'to ' + base),
+      cat: 'grammar', label: '非谓语动词', sev: 3,
+      tip: 'want / need / hope 等后面接 to + 动词原形，不接 -ing 形式。' };
+  }, out);
+
+  eachMatch(text, /\b(think|believe|suggest|avoid|enjoy|finish|practice|consider|mind|keep)\s+(learn|study|do|make|take|go|use|speak|write|read|help|improve|become|have)\b/gi, m => {
+    const v = m[2].toLowerCase();
+    const ing = /e$/.test(v) ? v.replace(/e$/, 'ing') : v + 'ing';
+    return { start: m.index + m[0].length - m[2].length, end: m.index + m[0].length, replacement: ing,
+      cat: 'grammar', label: '非谓语动词', sev: 3,
+      tip: '「' + m[1] + '」后面的动词要用 -ing 形式（动名词作宾语）：「' + m[1] + ' ' + v + '」→「' + m[1] + ' ' + ing + '」。' };
+  }, out);
+
+  const PREP_VERBS = ['make', 'do', 'take', 'go', 'come', 'see', 'learn', 'speak', 'write', 'read',
+    'use', 'help', 'get', 'have', 'be', 'study', 'find', 'eat', 'play', 'catch'];
+  eachMatch(text, /\b(worry about|afraid of|good at|interested in|instead of|tired of|think about|focus on|succeed in)\s+([a-z]{2,})\b/gi, m => {
+    const v = m[2].toLowerCase();
+    if (PREP_VERBS.indexOf(v) < 0) return null;
+    const ing = v === 'be' ? 'being' : (/e$/.test(v) ? v.replace(/e$/, 'ing') : v + 'ing');
+    return { start: m.index + m[0].length - m[2].length, end: m.index + m[0].length, replacement: ing,
+      cat: 'grammar', label: '非谓语动词', sev: 3,
+      tip: '介词后面要用动词的 -ing 形式：「' + m[1] + ' ' + v + '」应为「' + m[1] + ' ' + ing + '」。' };
+  }, out);
+}
+
+function ruleNounNumber(text, out) {
+  eachMatch(text, /\b(a|an)\s+(problems|students|books|teachers|reasons|ways|things|people|children|words|mistakes|friends|countries|cities|languages|questions|examples|factors)\b/gi, m => {
+    const w = m[2].toLowerCase(), sing = w.replace(/(ies)$/, 'y').replace(/s$/, '');
+    return { start: m.index, end: m.index + m[0].length, replacement: m[1] + ' ' + sing,
+      cat: 'grammar', label: '名词单复数', sev: 3, tip: 'a / an 后面接可数名词单数。' };
+  }, out);
+
+  eachMatch(text, /\b(different|various|many|several|these|those|two|three|some|most|a lot of|lots of|a few|numerous)\s+(country|city|student|teacher|way|kind|type|person|thing|language|problem|reason|example|factor|mistake|word|book|friend)\b/gi, m => {
+    const w = m[2].toLowerCase();
+    const pl = /(y)$/.test(w) ? w.replace(/y$/, 'ies') : (/s$/.test(w) ? w : w + 's');
+    return { start: m.index + m[0].length - m[2].length, end: m.index + m[0].length, replacement: pl,
+      cat: 'grammar', label: '名词单复数', sev: 3,
+      tip: m[1] + ' 后面要用可数名词复数：「' + w + '」→「' + pl + '」。' };
+  }, out);
+
+  eachMatch(text, /\bone of the\s+([a-z]{3,}?)\b(?!\w)/gi, m => {
+    const w = m[1];
+    if (/s$/.test(w)) return null;
+    const pl = /y$/.test(w) ? w.replace(/y$/, 'ies') : w + 's';
+    return { start: m.index + m[0].length - w.length, end: m.index + m[0].length, replacement: pl,
+      cat: 'grammar', label: '名词单复数', sev: 3,
+      tip: 'one of the 后面接复数名词：「' + w + '」→「' + pl + '」。' };
+  }, out);
+}
+
+function rulePronoun(text, out) {
+  eachMatch(text, /\bme and my\b/gi, () => ({
+    replacement: 'my friend and I', cat: 'grammar', label: '代词', sev: 2,
+    tip: '英语习惯把别人放在前面、自己放在后面，且作主语时用 I：「My friend and I」。'
+  }), out);
+  eachMatch(text, /\bits\s+(important|necessary|clear|obvious|difficult|easy|hard|true|possible|wrong|right)\b/gi, m => ({
+    start: m.index, end: m.index + 3, replacement: "it's",
+    cat: 'grammar', label: '代词', sev: 2,
+    tip: '这里需要「it is」的缩写 it\'s；its 表示「它的」。'
+  }), out);
+}
+
+function ruleCollocation(text, out) {
+  const table = [
+    [/\baccording to me\b/gi, 'in my opinion', '中式表达：英语中表达个人观点用 in my opinion / from my perspective。'],
+    [/\bopen the light\b/gi, 'turn on the light', '搭配错误：灯用 turn on / turn off。'],
+    [/\bclose the light\b/gi, 'turn off the light', '搭配错误：灯用 turn on / turn off。'],
+    [/\bdiscuss about\b/gi, 'discuss', 'discuss 是及物动词，后面不加 about。'],
+    [/\bemphasize on\b/gi, 'emphasize', 'emphasize 是及物动词，不需要 on。'],
+    [/\bpay attention on\b/gi, 'pay attention to', '固定搭配是 pay attention to。'],
+    [/\bdifferent with\b/gi, 'different from', '固定搭配是 different from。'],
+    [/\bin nowadays\b/gi, 'nowadays', 'nowadays 本身就是副词，前面不加 in。'],
+    [/\blearn knowledge\b/gi, 'acquire knowledge', '英语中知识用 acquire / gain，learn 后面接技能或科目。'],
+    [/\bget knowledge\b/gi, 'acquire knowledge', '搭配升级：get knowledge → acquire knowledge。'],
+    [/\bmake a progress\b/gi, 'make progress', 'progress 是不可数名词，不能加 a。'],
+    [/\bmake homework\b/gi, 'do homework', '固定搭配是 do homework。'],
+    [/\bdo a mistake\b/gi, 'make a mistake', '固定搭配是 make a mistake。'],
+    [/\btake a decision\b/gi, 'make a decision', '固定搭配是 make a decision。'],
+    [/\bas we all known\b/gi, 'as we all know', 'as we all know 是固定说法。'],
+    [/\bthere are many people think\b/gi, 'many people think', '句子结构重复：many people think 即可，不需要 there are。'],
+    [/\blook forward to hear\b/gi, 'look forward to hearing', 'look forward to 中 to 是介词，后面接 -ing 形式。'],
+    [/\bspend (time|money) to do\b/gi, 'spend $1 doing', 'spend time doing sth. 是固定句型。'],
+    [/\bin the recent years\b/gi, 'in recent years', 'recent years 前不加 the。'],
+    [/\bimprove my English level\b/gi, 'improve my English', '英语中直接说 improve my English 更地道。'],
+    [/\bI very like\b/gi, 'I like ... very much', '中式表达：very 不能直接修饰动词，用 like ... very much。'],
+    [/\bcan not\b/gi, 'cannot', 'cannot 通常写成一个词。'],
+    [/\bthe both\b/gi, 'both', 'both 前面不加 the。'],
+    [/\bmost of students\b/gi, 'most students', 'most students 或 most of the students。'],
+    [/\balthough\b([^.!?\n]{0,60}?)\bbut\b/gi, null, '中文里「虽然…但是…」连用，英语中 although 与 but 只能留一个。']
+  ];
+  table.forEach(([re, rep, tip], idx) => {
+    eachMatch(text, re, m => {
+      if (rep === null) {
+        const bIdx = m[0].toLowerCase().lastIndexOf('but');
+        const s = m.index + bIdx;
+        return { start: s, end: s + 3, replacement: '', cat: 'grammar', label: '句式', sev: 2, tip };
+      }
+      let replacement = rep;
+      if (rep.includes('$1')) replacement = rep.replace(/\$1/g, m[1] || '');
+      return { replacement, cat: 'collocation', label: '固定搭配', sev: 2, tip };
+    }, out);
+  });
+
+  eachMatch(text, /\bbecause\b([^.!?\n]{0,60}?)\bso\b/gi, m => {
+    const sIdx = m[0].toLowerCase().lastIndexOf('so');
+    const s = m.index + sIdx;
+    return { start: s, end: s + 2, replacement: '', cat: 'grammar', label: '句式', sev: 2,
+      tip: 'because 与 so 不能连用，保留一个：Because it rained, we stayed home. 或 It rained, so we stayed home.' };
+  }, out);
+}
+
+function ruleRedundancy(text, out) {
+  const table = [
+    [/\bmore better\b/gi, 'better', '比较级不可叠加：better 已经是 good 的比较级。'],
+    [/\bmost best\b/gi, 'best', '最高级不可叠加。'],
+    [/\bvery very\b/gi, 'extremely', '重复强调，可用 extremely / exceptionally 替代。'],
+    [/\bin my opinion,? I think\b/gi, 'In my opinion', '语义重复：in my opinion 与 I think 表达同一件事。'],
+    [/\band also\b/gi, 'and', 'and 与 also 语义重复。'],
+    [/\brepeat again\b/gi, 'repeat', 'repeat 本身含「再一次」的意思。'],
+    [/\breturn back\b/gi, 'return', 'return 已含 back 的意思。'],
+    [/\bnew innovation\b/gi, 'innovation', 'innovation 本身即「新事物」。']
+  ];
+  table.forEach(([re, rep, tip]) => {
+    eachMatch(text, re, () => ({ replacement: rep, cat: 'style', label: '冗余表达', sev: 1, tip }), out);
+  });
+}
+
+function rulePunct(text, out) {
+  eachMatch(text, /[，。；：！？、（）【】“”‘’…]/g, m => {
+    const en = CN_PUNCT[m[0]];
+    const next = text.charAt(m.index + m[0].length);
+    const needSpace = en && /[A-Za-z]/.test(next);
+    return { replacement: en == null ? '' : (en + (needSpace ? ' ' : '')), cat: 'punct', label: '标点', sev: 1,
+      tip: '英文写作需使用英文标点：「' + m[0] + '」应写作「' + (en || '') + '」。' };
+  }, out);
+
+  eachMatch(text, /[,;](?=[A-Za-z\u4e00-\u9fa5])/g, m => ({
+    start: m.index + 1, end: m.index + 1, replacement: ' ', cat: 'punct', label: '标点', sev: 1,
+    tip: '英文标点后面需要空一格。'
+  }), out);
+
+  eachMatch(text, /\s+([,.;:!?])/g, m => ({
+    replacement: m[1], cat: 'punct', label: '标点', sev: 1,
+    tip: '标点前不应有空格，空格应放在标点之后。'
+  }), out);
+
+  eachMatch(text, /[ \t]{2,}/g, () => ({
+    replacement: ' ', cat: 'punct', label: '空格', sev: 1, tip: '出现多余空格，保留一个即可。'
+  }), out);
+
+  eachMatch(text, /([.!?])\s+([a-z])/g, m => ({
+    start: m.index + m[0].length - 1, end: m.index + m[0].length, replacement: m[2].toUpperCase(),
+    cat: 'punct', label: '大小写', sev: 1, tip: '句首字母需大写。'
+  }), out);
+
+  eachMatch(text, /\bi\b/g, () => ({
+    replacement: 'I', cat: 'punct', label: '大小写', sev: 2, tip: '英语中第一人称代词 I 永远大写。'
+  }), out);
+
+  const proper = { china:'China', english:'English', america:'America', chinese:'Chinese', japan:'Japan',
+    japanese:'Japanese', britain:'Britain', british:'British', monday:'Monday', tuesday:'Tuesday',
+    wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday',
+    wechat:'WeChat', confucius:'Confucius' };
+  eachMatch(text, /\b(china|english|america|chinese|japan|japanese|britain|british|monday|tuesday|wednesday|thursday|friday|saturday|sunday|wechat|confucius)\b/g, m => {
+    const fix = proper[m[0]];
+    if (fix === m[0]) return null;
+    return { replacement: fix, cat: 'punct', label: '大小写', sev: 2,
+      tip: '国名、语言、星期等专有名词必须大写：「' + m[0] + '」→「' + fix + '」。' };
+  }, out);
+
+  eachMatch(text, /(^|[.!?]\s+)([a-z])/g, m => ({
+    start: m.index + m[1].length, end: m.index + m[1].length + 1, replacement: m[2].toUpperCase(),
+    cat: 'punct', label: '大小写', sev: 1, tip: '句首字母需大写。'
+  }), out);
+}
+
+function ruleStyle(text, out) {
+  const table = [
+    [/\ba lot of\b/gi, 'a considerable number of', '学术写作中 a lot of 偏口语，可升级为 a considerable number of / numerous。'],
+    [/\blots of\b/gi, 'numerous', 'lots of 偏口语，学术语境建议用 numerous / a great deal of。'],
+    [/\bkids\b/gi, 'children', 'kids 偏口语，书面语用 children。'],
+    [/\bgood\b/gi, 'beneficial', '用词笼统：可根据语境换成 beneficial / effective / remarkable 等更精确的词。'],
+    [/\bbad\b/gi, 'detrimental', '用词笼统：可用 detrimental / harmful / unfavorable 等更精确的词。'],
+    [/\bbig\b/gi, 'significant', '用词笼统：big 可升级为 significant / substantial / considerable。'],
+    [/\bthings\b/gi, 'factors', 'things 过于笼统，可具体化为 factors / elements / aspects。'],
+    [/\bmake\b/gi, 'render', '动词偏基础：make 可根据语境升级为 render / generate / produce。'],
+    [/\buse\b/gi, 'utilize', '动词偏基础：use 可升级为 utilize / employ / apply。'],
+    [/\bshow\b/gi, 'demonstrate', '动词偏基础：show 可升级为 demonstrate / illustrate / indicate。'],
+    [/\bmore and more\b/gi, 'an increasing number of', 'more and more 偏口语，学术写作可用 an increasing number of。'],
+    [/\bhard\b/gi, 'challenging', 'hard 偏口语，可用 challenging / demanding。']
+  ];
+  table.forEach(([re, rep, tip]) => {
+    eachMatch(text, re, () => ({ replacement: rep, cat: 'style', label: '用词升级', sev: 1, advisory: true, tip }), out);
+  });
+
+  eachMatch(text, /(^|[.!?]\s+)(so|but|and|also)\s+/gi, m => {
+    const map = { so:'Therefore, ', but:'However, ', and:'In addition, ', also:'Moreover, ' };
+    const k = m[2].toLowerCase();
+    return { start: m.index + m[1].length, end: m.index + m[1].length + m[2].length,
+      replacement: map[k].trim().replace(/,$/, ','), cat: 'style', label: '连接词', sev: 1,
+      tip: '句首用 ' + m[2] + ' 偏口语，书面语可用 ' + map[k] + ' 提升正式度。' };
+  }, out);
+
+  eachMatch(text, /\bmy English is (poor|very poor|bad)\b/gi, () => ({
+    replacement: 'my English still needs improvement', cat: 'style', label: '表达得体', sev: 1,
+    tip: 'self-poor 表达显得消极，可用 still needs improvement / is not yet fluent。'
+  }), out);
+}
+
+/* ---- 篇章级检查（无具体位置，作为建议） ---- */
+function discourseChecks(text, sents, words) {
+  const tips = [], strengths = [];
+  const lens = sents.map(s => (s.text.trim().match(/[A-Za-z']+/g) || []).length);
+  const avg = lens.length ? lens.reduce((a, b) => a + b, 0) / lens.length : 0;
+  const mean = avg;
+  const sd = lens.length > 1 ? Math.sqrt(lens.reduce((a, b) => a + (b - mean) ** 2, 0) / lens.length) : 0;
+  const conn = CONNECTIVES.filter(c => new RegExp('\\b' + c.replace(/ /g, '\\s+') + '\\b', 'i').test(text));
+  const subord = (text.match(SUBORDINATORS) || []).length;
+  const paras = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  const lensOver40 = lens.filter(l => l > 40).length;
+  const lensUnder8 = lens.filter(l => l < 8).length;
+
+  if (lensOver40 > 0) tips.push('有 ' + lensOver40 + ' 个句子超过 40 词，句子过长容易让读者迷路。可拆成两句，或把从句改成独立的短句。');
+  if (avg > 0 && avg < 10 && sents.length >= 3) tips.push('平均每句仅 ' + round(avg) + ' 词，句子偏短、结构单一。可尝试用 which / because / although 等把两个简单句合并，让句式更有变化。');
+  if (conn.length < 2) tips.push('连接词使用偏少（只找到 ' + (conn.length ? conn.join('、') : '0 个') + '）。建议在段落间加入 However / Therefore / Moreover / For example 让逻辑更清晰。');
+  else strengths.push('恰当使用了 ' + conn.slice(0, 4).join('、') + ' 等连接词，篇章衔接较好。');
+  if (subord >= 2) strengths.push('出现了 ' + subord + ' 处从句结构，具备一定的复杂句式意识。');
+  else tips.push('几乎未使用从句。可练习把两个简单句改写成定语从句或状语从句。');
+  if (paras.length >= 3) strengths.push('段落划分清晰（共 ' + paras.length + ' 段），符合"总—分—总"的常见结构。');
+  else if (sents.length >= 5) tips.push('全文未分段。建议按"引入—论证—结论"分成 3 段，结构会清楚很多。');
+  if (sd > 6) strengths.push('句子长短有变化（标准差 ' + sd.toFixed(1) + '），节奏感不错。');
+
+  // 重复用词（排除专有名词与高频学术词）
+  const NO_COUNT = new Set(['english', 'chinese', 'china', 'america', 'japan', 'students', 'student',
+    'people', 'language', 'learning', 'knowledge', 'school', 'university', 'education']);
+  const freq = {};
+  (text.toLowerCase().match(/[a-z']{4,}/g) || []).forEach(w => {
+    if (WORD_STOP.has(w) || NO_COUNT.has(w)) return;
+    freq[w] = (freq[w] || 0) + 1;
+  });
+  const repeated = Object.entries(freq).filter(([, c]) => c >= 4).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  repeated.forEach(([w, c]) => tips.push('「' + w + '」重复出现 ' + c + ' 次，建议用同义词替换，例如查阅同义词词典换用更精确的表达。'));
+
+  // 句首重复
+  const starts = sents.map(s => (s.text.trim().match(/^[A-Za-z']+/) || [''])[0].toLowerCase()).filter(Boolean);
+  const sc = {};
+  starts.forEach(s => sc[s] = (sc[s] || 0) + 1);
+  const repStart = Object.entries(sc).filter(([, c]) => c >= 2 && c >= starts.length * 0.34).sort((a, b) => b[1] - a[1])[0];
+  if (repStart) tips.push('有 ' + repStart[1] + ' 个句子以「' + repStart[0] + '」开头，句式显得单调。可变换开头方式，例如用状语（In recent years, ...）或形式主语（It is ... that ...）。');
+
+  // 兜底：保证至少 3 条改进建议
+  const DEFAULTS = [
+    '每天用 10 分钟做「句子改写」练习：把一个简单句改写成含 which 或 because 的复合句。',
+    '建立个人错题本：把本次标红的句子抄写一遍并写出正确版本，一周后重写检验。',
+    '写作前先列 3 点提纲，写完后留 3 分钟专门检查主谓一致、冠词与标点。'
+  ];
+  let di = 0;
+  while (tips.length < 3 && di < DEFAULTS.length) tips.push(DEFAULTS[di++]);
+
+  return { tips, strengths, avg, sd, conn, subord, paras: paras.length, repeated };
+}
+
+/* ---- 主分析流程 ---- */
+function analyze(text) {
+  const issues = [];
+  const steps = [
+    () => ruleSpelling(text, issues),
+    () => { ruleArticle(text, issues); ruleSVA(text, issues); ruleTense(text, issues); ruleNounNumber(text, issues); rulePronoun(text, issues); },
+    () => { ruleCollocation(text, issues); ruleRedundancy(text, issues); },
+    () => { rulePunct(text, issues); ruleStyle(text, issues); }
+  ];
+  steps.forEach(fn => fn());
+
+  const clean = text.replace(/\s+/g, ' ').trim();
+  const wordList = clean.match(/[A-Za-z']+/g) || [];
+  const words = wordList.length;
+  const unique = new Set(wordList.map(w => w.toLowerCase())).size;
+  const longWords = wordList.filter(w => w.length >= 8).length;
+  const sents = splitSentences(text);
+  const disc = discourseChecks(text, sents, words);
+
+  // 去重：同一位置只保留一条
+  const seen = new Set();
+  const finalIssues = issues.filter(i => {
+    const key = i.start + '|' + i.end;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  }).sort((a, b) => a.start - b.start);
+
+  const stats = {
+    words, sentences: sents.length, unique,
+    ttr: words ? unique / words : 0,
+    longRatio: words ? longWords / words : 0,
+    avgLen: disc.avg,
+    paragraphs: disc.paras
+  };
+
+  const hardIssues = finalIssues.filter(i => !i.advisory);
+  const adviceIssues = finalIssues.filter(i => i.advisory);
+
+  const sev = { 3: 0, 2: 0, 1: 0 };
+  hardIssues.forEach(i => sev[i.sev]++);
+  const weighted = sev[3] * 3 + sev[2] * 2 + sev[1] * 1;
+  const density = words ? weighted / words * 100 : 0;
+
+  const accuracy = clamp(round(100 - density * 2.1), 45, 100);
+  const vocab = clamp(round(30 + stats.ttr * 68 + stats.longRatio * 70), 40, 100);
+  const variety = clamp(round(42 + disc.sd * 4 + disc.subord * 2.6), 40, 100);
+  const coherence = clamp(round(46 + disc.conn.length * 5 + disc.paras * 4), 40, 100);
+  const total = round(accuracy * 0.4 + vocab * 0.25 + variety * 0.2 + coherence * 0.15);
+  const cefr = total >= 88 ? 'C1' : total >= 78 ? 'B2+' : total >= 70 ? 'B2' : total >= 62 ? 'B1+' : total >= 52 ? 'B1' : 'A2';
+
+  // 分类统计
+  const byCat = {};
+  finalIssues.forEach(i => {
+    const k = i.label;
+    if (!byCat[k]) byCat[k] = { label: k, cat: i.cat, items: [], sev: i.sev };
+    byCat[k].items.push(i);
+    byCat[k].sev = Math.max(byCat[k].sev, i.sev);
+  });
+
+  // 总评文字
+  const catList = Object.values(byCat).sort((a, b) => b.items.length - a.items.length);
+  const p1 = '本文共 ' + words + ' 词、' + sents.length + ' 个句子、' + stats.paragraphs + ' 个段落，'
+    + '综合得分 ' + total + ' 分，估算水平约相当于 CEFR ' + cefr + '。'
+    + (total >= 80 ? '整体表达比较顺畅，语言基本功扎实。'
+      : total >= 68 ? '整体意思表达清楚，但语言准确性还有提升空间。'
+      : '主旨基本可以理解，但语言层面存在较多可改进之处。');
+
+  const topCats = catList.filter(c => !c.items.every(i => i.advisory)).slice(0, 3);
+  const p2 = catList.length
+    ? '本次批改共发现 ' + hardIssues.length + ' 处需要修改的问题，其中' +
+      (sev[3] ? '严重问题 ' + sev[3] + ' 处（多为语法与拼写）' : '未发现严重语法错误') +
+      (sev[2] ? '、中等问题 ' + sev[2] + ' 处' : '') +
+      (sev[1] ? '、轻微问题 ' + sev[1] + ' 处' : '') + '。' +
+      (topCats.length ? '出现最多的是【' + topCats.map(c => c.label + '（' + c.items.length + '处）').join('】【') + '】。' : '') +
+      (adviceIssues.length ? '此外还有 ' + adviceIssues.length + ' 处用词升级建议（仅供参考，未计入错误数）。' : '')
+    : '本次批改未发现规则库中记录的错误，语言规范度很高。';
+
+  const p3 = disc.tips.length
+    ? '提升路径：' + disc.tips.slice(0, 3).map((t, i) => (i + 1) + ') ' + t).join(' ')
+    : '提升路径：继续扩大阅读量，尝试使用更丰富的从句与衔接手段，让表达更有层次。';
+
+  return {
+    text, title: '', issues: finalIssues, hardIssues, adviceIssues, stats, sev, density,
+    issueCount: hardIssues.length, adviceCount: adviceIssues.length,
+    score: { total, accuracy, vocab, variety, coherence, cefr },
+    byCat: catList, disc, summary: [p1, p2, p3], sentences: sents
+  };
+}
+
+function splitSentences(text) {
+  const out = [];
+  const re = /[^.!?\n]+[.!?]+["')\]]*|[^.!?\n]+$/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (!m[0].trim()) continue;
+    out.push({ start: m.index, end: m.index + m[0].length, text: m[0] });
+  }
+  return out;
+}
+
+/* =========================================================
+   4. 留痕渲染
+   ========================================================= */
+function markSegment(text, segStart, segEnd, issues) {
+  const rel = issues
+    .filter(i => !i.advisory && i.start >= segStart && i.end <= segEnd && (i.start < i.end || i.replacement))
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  let out = '', pos = segStart;
+  for (const it of rel) {
+    if (it.start < pos) continue;
+    out += esc(text.slice(pos, it.start));
+    const orig = text.slice(it.start, it.end);
+    const tip = esc((it.label ? '【' + it.label + '】' : '') + (it.tip || ''));
+    if (!orig.trim()) {
+      out += '<ins class="fix" data-tip="' + tip + '">' + esc(it.replacement) + '</ins>';
+    } else if (!it.replacement) {
+      out += '<del class="fix" data-tip="' + tip + '">' + esc(orig) + '</del>';
+    } else {
+      out += '<del class="fix" data-tip="' + tip + '">' + esc(orig) + '</del>'
+        + '<ins class="fix" data-tip="' + tip + '">' + esc(it.replacement) + '</ins>';
+    }
+    pos = it.end;
+  }
+  out += esc(text.slice(pos, segEnd));
+  return out;
+}
+
+function correctedText(res) {
+  const sorted = res.issues.filter(i => !i.advisory).slice().sort((a, b) => a.start - b.start);
+  let out = '', pos = 0;
+  for (const it of sorted) {
+    if (it.start < pos) continue;
+    out += res.text.slice(pos, it.start);
+    out += it.replacement || '';
+    pos = it.end;
+  }
+  out += res.text.slice(pos);
+  return out.replace(/[ \t]{2,}/g, ' ');
+}
+
+/* =========================================================
+   5. 视图渲染
+   ========================================================= */
+function renderResult(tab) {
+  const box = $('#resultBody');
+  const res = CURRENT;
+  if (!res) return;
+  if (tab === 'overview') box.innerHTML = viewOverview(res);
+  if (tab === 'trace') box.innerHTML = viewTrace(res);
+  if (tab === 'issues') box.innerHTML = viewIssues(res);
+  if (tab === 'advice') box.innerHTML = viewAdvice(res);
+  if (tab === 'compare') box.innerHTML = viewCompare(res);
+}
+
+function scoreColor(v) { return v >= 80 ? 'g' : v >= 65 ? 'w' : 'b'; }
+
+function viewOverview(r) {
+  const s = r.score, st = r.stats;
+  const circ = 2 * Math.PI * 56;
+  const dash = circ * s.total / 100;
+  return ''
+    + '<div class="score-row">'
+    + '  <div class="ring"><svg width="132" height="132">'
+    + '    <circle cx="66" cy="66" r="56" fill="none" stroke="#eef1f4" stroke-width="11"/>'
+    + '    <circle cx="66" cy="66" r="56" fill="none" stroke="#2f5d8a" stroke-width="11" stroke-linecap="round"'
+    + '      stroke-dasharray="' + dash.toFixed(1) + ' ' + circ.toFixed(1) + '"/>'
+    + '  </svg><div class="val"><div><div class="num">' + s.total + '</div><div class="cap">综合得分</div></div></div></div>'
+    + '  <div style="flex:1;min-width:220px">'
+    + '    <div class="badge-cefr">CEFR 估算：' + s.cefr + '</div>'
+    + '    <div class="small muted" style="margin-top:8px">满分 100 分，结合语言准确性、词汇、句式与连贯性加权计算</div>'
+    + '    <div class="stat-grid">'
+    + '      <div class="stat"><div class="k">总词数</div><div class="v">' + st.words + '</div></div>'
+    + '      <div class="stat"><div class="k">句子数</div><div class="v">' + st.sentences + '</div></div>'
+    + '      <div class="stat"><div class="k">平均句长</div><div class="v">' + round(st.avgLen) + '<span class="small muted"> 词</span></div></div>'
+    + '      <div class="stat"><div class="k">词汇丰富度</div><div class="v">' + round(st.ttr * 100) + '%</div></div>'
+    + '      <div class="stat"><div class="k">需修改问题</div><div class="v" style="color:#c0392b">' + r.issueCount + '</div></div>'
+    + '      <div class="stat"><div class="k">用词建议</div><div class="v" style="color:#6c5ca8">' + r.adviceCount + '</div></div>'
+    + '    </div>'
+    + '  </div></div>'
+    + '<div class="video-cta">'
+    + '  <div class="vc-ico">🎬</div>'
+    + '  <div class="vc-txt"><b>把这篇文章的批改变成一段讲解视频</b>'
+    + '    <span>点右侧按钮，Agent 会依据上面这份批改结果自动生成脚本、画面、字幕和中文配音，约 15 秒完成，可发给学生反复观看。</span></div>'
+    + '  <button class="btn-primary" onclick="generateExplainVideo()" id="explainBtn">🎬 生成讲解视频</button>'
+    + '</div>'
+    + '<div class="dims">'
+    + dimBar('语法准确度', s.accuracy) + dimBar('词汇丰富度', s.vocab)
+    + dimBar('句式多样性', s.variety) + dimBar('篇章连贯性', s.coherence)
+    + '</div>'
+    + '<div class="summary-block"><h3>总体评价</h3><p>' + esc(r.summary[0]) + '</p><p>' + esc(r.summary[1]) + '</p><p>' + esc(r.summary[2]) + '</p></div>'
+    + (r.disc.strengths.length
+      ? '<div class="summary-block" style="background:#e8f6f1"><h3 style="color:#2f8f6f">做得好的地方</h3><ul class="ul-clean">'
+      + r.disc.strengths.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>' : '')
+    + '<div class="btn-row"><button class="btn-primary" onclick="downloadReport()">下载批改报告</button>'
+    + '<button class="btn-ghost" onclick="window.print()">打印 / 存为 PDF</button>'
+    + '<button class="btn-ghost" onclick="generateExplainVideo()">🎬 生成讲解视频</button></div>';
+}
+
+function dimBar(name, v) {
+  return '<div class="dim"><span>' + name + '</span><span class="bar ' + scoreColor(v) + '"><i style="width:' + v + '%"></i></span>'
+    + '<span class="n">' + v + '</span></div>';
+}
+
+function viewTrace(r) {
+  let html = '<div class="legend">'
+    + '<span><i class="swatch" style="background:#fdecea;border:1px solid #c0392b"></i>需删除 / 修改</span>'
+    + '<span><i class="swatch" style="background:#e8f6f1;border:1px solid #2f8f6f"></i>建议改为</span>'
+    + '<span class="muted">把鼠标移到彩色文字上，会显示讲解</span></div>'
+    + '<div class="sent-list">';
+  r.sentences.forEach((s, i) => {
+    const inS = r.issues.filter(x => x.start >= s.start && x.end <= s.end && (x.start < x.end || x.replacement));
+    const high = inS.filter(x => x.sev === 3).length;
+    const cls = high ? 'bad' : inS.length ? 'warn' : 'good';
+    const wc = (s.text.match(/[A-Za-z']+/g) || []).length;
+    const note = high ? '该句有 ' + high + ' 处较严重的语法/拼写问题，建议先改这一句。'
+      : inS.length ? '该句有 ' + inS.length + ' 处小问题（用词 / 标点 / 风格）。'
+      : '该句暂无问题，表达清楚。';
+    html += '<div class="sent ' + cls + '">'
+      + '<div class="sent-top"><b>第 ' + (i + 1) + ' 句</b><span class="chip">' + wc + ' 词</span>'
+      + (inS.length ? '<span class="chip" style="color:#c0392b;border-color:#f3c9c4">' + inS.length + ' 处修改</span>' : '<span class="chip" style="color:#2f8f6f;border-color:#bfe3d8">通过</span>')
+      + '</div>'
+      + '<div class="sent-body">' + markSegment(r.text, s.start, s.end, r.issues) + '</div>'
+      + '<div class="sent-note">' + esc(note) + '</div></div>';
+  });
+  html += '</div>';
+  if (!r.sentences.length) html = '<div class="empty-state">未识别到完整句子</div>';
+  return html;
+}
+
+function viewIssues(r) {
+  if (!r.byCat.length) return '<div class="empty-state"><div class="big">✓</div><p>未发现明显问题</p></div>';
+  let html = '';
+  r.byCat.forEach(c => {
+    const advOnly = c.items.every(i => i.advisory);
+    const level = c.sev === 3 ? 'high' : c.sev === 2 ? 'mid' : 'low';
+    html += '<div class="cat-block"><div class="cat-head" onclick="this.nextElementSibling.hidden=!this.nextElementSibling.hidden">'
+      + '<span>' + esc(c.label) + (advOnly ? '<span class="small muted" style="font-weight:400">　（可选升级建议，不计入错误）</span>' : '') + '</span>'
+      + '<span class="cnt ' + (advOnly ? 'low' : level) + '">' + c.items.length + '</span></div>'
+      + '<div>' + c.items.map(it => {
+        const isAdv = !!it.advisory;
+        const orig = it.start === it.end ? '（缺漏）' : r.text.slice(it.start, it.end);
+        const rep = it.replacement || '（删除）';
+        return '<div class="issue">'
+          + (isAdv ? '<span class="pill w" style="margin-right:8px">建议</span>' : '')
+          + '<span class="q' + (isAdv ? '' : ' strike') + '">' + esc(orig) + '</span>'
+          + '<span class="arrow">→</span><span class="a">' + esc(rep) + '</span>'
+          + '<div class="ex">' + esc(it.tip || '') + '</div></div>';
+      }).join('') + '</div></div>';
+  });
+  return html;
+}
+
+function viewAdvice(r) {
+  const styleIssues = r.adviceIssues || r.issues.filter(i => i.cat === 'style');
+  const uniq = [];
+  const seen = new Set();
+  styleIssues.forEach(i => { const k = i.tip; if (!seen.has(k)) { seen.add(k); uniq.push(i); } });
+
+  let html = '<div class="summary-block"><h3>1. 逐条改进清单（按优先级）</h3><ul class="ul-clean">'
+    + r.byCat.filter(c => !c.items.every(i => i.advisory)).slice(0, 6).map(c => '<li><b>' + esc(c.label) + '</b>（' + c.items.length + ' 处）：'
+      + esc(c.items[0].tip || '') + '</li>').join('') + '</ul></div>';
+
+  html += '<div class="summary-block"><h3>2. 用词升级建议</h3>'
+    + (uniq.length
+      ? '<table class="tbl"><thead><tr><th>原表达</th><th>可替换为</th><th>理由</th></tr></thead><tbody>'
+      + uniq.map(i => '<tr><td>' + esc(r.text.slice(i.start, i.end)) + '</td><td style="color:#1c6b52;font-weight:600">'
+        + esc(i.replacement) + '</td><td class="muted small">' + esc(i.tip) + '</td></tr>').join('')
+      + '</tbody></table>'
+      : '<p class="muted">未发现明显的低级用词，继续保持。</p>')
+    + '</div>';
+
+  html += '<div class="summary-block"><h3>3. 篇章结构与句式建议</h3><ul class="ul-clean">'
+    + (r.disc.tips.length ? r.disc.tips.map(t => '<li>' + esc(t) + '</li>').join('') : '<li>结构与连贯性表现良好，可挑战更复杂的论证型写作。</li>')
+    + '</ul></div>';
+
+  html += '<div class="summary-block"><h3>4. 下一步练习建议</h3><ul class="ul-clean">'
+    + '<li>把上面「逐句留痕」里标红的句子抄写一遍，并写出正确版本，加深记忆。</li>'
+    + (r.sev[3] > 3 ? '<li>你的语法错误较集中，建议专项复习：' + r.byCat.filter(c => c.sev === 3).map(c => c.label).join('、') + '。</li>' : '')
+    + '<li>每天精读一篇 300 词英文短文，圈出 3 个可以替换你原文中基础词的表达。</li>'
+    + '<li>写完后先自己朗读一遍再提交，很多标点与主谓一致问题可以自己发现。</li>'
+    + '</ul></div>';
+  return html;
+}
+
+function viewCompare(r) {
+  return '<div class="compare">'
+    + '<div><h3>原文</h3><div class="paper">' + esc(r.text.trim()) + '</div></div>'
+    + '<div><h3>修改后（系统建议版）</h3><div class="paper clean">' + esc(correctedText(r).trim()) + '</div>'
+    + '<div class="btn-row"><button class="btn-soft btn-sm" onclick="copyCorrected()">复制修改后全文</button></div></div>'
+    + '</div>';
+}
+
+function copyCorrected() {
+  const t = correctedText(CURRENT);
+  navigator.clipboard.writeText(t).then(() => toast('已复制修改后的全文'), () => toast('复制失败，请手动选择'));
+}
+
+/* =========================================================
+   6. 报告导出
+   ========================================================= */
+function downloadReport() {
+  const r = CURRENT; if (!r) return;
+  const s = r.score;
+  const html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>英语作文批改报告</title>'
+    + '<style>body{font-family:-apple-system,"Microsoft YaHei",sans-serif;max-width:820px;margin:40px auto;'
+    + 'padding:0 22px;color:#1f2933;line-height:1.8}h1{font-size:22px}h2{font-size:16px;margin-top:28px;'
+    + 'border-left:4px solid #2f5d8a;padding-left:10px}table{border-collapse:collapse;width:100%;font-size:14px}'
+    + 'th,td{border:1px solid #e2e6ea;padding:8px 10px;text-align:left}th{background:#f5f7f9}'
+    + 'del{color:#c0392b;background:#fdecea}ins{color:#1c6b52;background:#e8f6f1;text-decoration:none;font-weight:600}'
+    + '.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:14px}.paper{white-space:pre-wrap;'
+    + 'font-family:Georgia,serif;font-size:15px;line-height:1.9}</style></head><body>'
+    + '<h1>AI 英语作文批改报告</h1>'
+    + '<div class="kv"><b>学生</b><span>' + esc(CURRENT.student || '（未填写）') + '</span>'
+    + '<b>题目</b><span>' + esc(CURRENT.title || '（未填写）') + '</span>'
+    + '<b>时间</b><span>' + esc(CURRENT.time || new Date().toLocaleString('zh-CN')) + '</span>'
+    + '<b>引擎</b><span>' + (CURRENT.engine === 'ai' ? '大模型 AI（含本地规则补充）' : '本地规则引擎') + '</span>'
+    + '<b>综合得分</b><span>' + s.total + ' / 100　CEFR：' + s.cefr + '</span>'
+    + '<b>篇幅</b><span>' + r.stats.words + ' 词 / ' + r.stats.sentences + ' 句 / ' + r.stats.paragraphs + ' 段</span></div>'
+    + '<h2>总体评价</h2><p>' + esc(r.summary[0]) + '</p><p>' + esc(r.summary[1]) + '</p><p>' + esc(r.summary[2]) + '</p>'
+    + '<h2>分项得分</h2><table><tr><th>维度</th><th>得分</th></tr>'
+    + '<tr><td>语法准确度</td><td>' + s.accuracy + '</td></tr>'
+    + '<tr><td>词汇丰富度</td><td>' + s.vocab + '</td></tr>'
+    + '<tr><td>句式多样性</td><td>' + s.variety + '</td></tr>'
+    + '<tr><td>篇章连贯性</td><td>' + s.coherence + '</td></tr></table>'
+    + '<h2>逐句留痕</h2>'
+    + r.sentences.map((x, i) => '<p class="paper">' + (i + 1) + '. ' + markSegment(r.text, x.start, x.end, r.issues) + '</p>').join('')
+    + '<h2>问题清单（共 ' + r.issueCount + ' 处）</h2><table><tr><th>类型</th><th>原文</th><th>建议</th><th>讲解</th></tr>'
+    + r.hardIssues.map(it => '<tr><td>' + esc(it.label) + '</td><td>' + esc(it.start === it.end ? '（缺漏）' : r.text.slice(it.start, it.end))
+      + '</td><td>' + esc(it.replacement || '（删除）') + '</td><td>' + esc(it.tip) + '</td></tr>').join('')
+    + '</table>'
+    + (r.adviceCount ? '<h2>用词升级建议（可选，共 ' + r.adviceCount + ' 处）</h2>'
+      + '<table><tr><th>原表达</th><th>可替换为</th><th>说明</th></tr>'
+      + r.adviceIssues.map(it => '<tr><td>' + esc(r.text.slice(it.start, it.end)) + '</td><td>'
+        + esc(it.replacement) + '</td><td>' + esc(it.tip) + '</td></tr>').join('') + '</table>' : '')
+    + '<h2>修改后全文</h2><div class="paper">' + esc(correctedText(r).trim()) + '</div>'
+    + '</body></html>';
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '作文批改报告-' + (CURRENT.title || '未命名') + '.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('报告已下载，可用浏览器打开或打印为 PDF');
+}
+
+/* =========================================================
+   7. AI 增强（可选）
+   ========================================================= */
+async function aiAnalyze(text, cfg) {
+  const prompt = '你是大学英语写作教师。请批改下面的英文作文，只输出 JSON（不要 markdown 代码块），格式：'
+    + '{"score":85,"cefr":"B2","dimensions":{"accuracy":80,"vocabulary":78,"variety":75,"coherence":82},'
+    + '"summary":"中文总评，150-250字","strengths":["中文亮点1","中文亮点2"],'
+    + '"issues":[{"original":"原文中出现的片段（必须与原文完全一致）","suggestion":"修改后的表达",'
+    + '"category":"语法|用词|搭配|标点|句式|篇章","explain":"中文讲解，说明为什么错、怎么记"}]}。'
+    + 'issues 至少 8 条，original 必须能在原文中被精确检索到。\n\n作文题目：' + (CURRENT.title || '未提供')
+    + '\n作文正文：\n' + text;
+  const res = await fetch(cfg.base.replace(/\/+$/, '') + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key },
+    body: JSON.stringify({
+      model: cfg.model,
+      temperature: 0.3,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  });
+  if (!res.ok) throw new Error('接口返回 ' + res.status);
+  const data = await res.json();
+  const raw = (data.choices && data.choices[0] && data.choices[0].message.content) || '';
+  const jsonStr = raw.replace(/```json|```/g, '').trim();
+  const start = jsonStr.indexOf('{'), end = jsonStr.lastIndexOf('}');
+  return JSON.parse(jsonStr.slice(start, end + 1));
+}
+
+function mergeAI(local, ai) {
+  const r = local;
+  r.engine = 'ai';
+  if (typeof ai.score === 'number') r.score.total = ai.score;
+  if (ai.cefr) r.score.cefr = ai.cefr;
+  if (ai.dimensions) {
+    r.score.accuracy = ai.dimensions.accuracy ?? r.score.accuracy;
+    r.score.vocab = ai.dimensions.vocabulary ?? r.score.vocab;
+    r.score.variety = ai.dimensions.variety ?? r.score.variety;
+    r.score.coherence = ai.dimensions.coherence ?? r.score.coherence;
+  }
+  if (ai.summary) r.summary[0] = ai.summary;
+  if (Array.isArray(ai.strengths) && ai.strengths.length) r.disc.strengths = ai.strengths;
+
+  const catMap = { '语法':'grammar', '用词':'style', '搭配':'collocation', '标点':'punct', '句式':'structure', '篇章':'discourse', '拼写':'spelling' };
+  (ai.issues || []).forEach(x => {
+    if (!x.original) return;
+    const idx = r.text.indexOf(x.original);
+    if (idx < 0) {
+      if (x.explain) r.disc.tips.unshift('【AI 建议】' + (x.category ? x.category + '：' : '') + x.explain
+        + (x.suggestion ? '（建议：' + x.suggestion + '）' : ''));
+      return;
+    }
+    r.issues.push({
+      start: idx, end: idx + x.original.length,
+      replacement: x.suggestion || '',
+      cat: catMap[x.category] || 'grammar',
+      label: (x.category || 'AI 建议'),
+      sev: 2,
+      tip: '【AI 批改】' + (x.explain || '') + (x.suggestion ? ' → ' + x.suggestion : '')
+    });
+  });
+  r.issues.sort((a, b) => a.start - b.start);
+  const byCat = {};
+  r.issues.forEach(i => {
+    if (!byCat[i.label]) byCat[i.label] = { label: i.label, cat: i.cat, items: [], sev: i.sev };
+    byCat[i.label].items.push(i);
+    byCat[i.label].sev = Math.max(byCat[i.label].sev, i.sev);
+  });
+  r.byCat = Object.values(byCat).sort((a, b) => b.items.length - a.items.length);
+  r.hardIssues = r.issues.filter(i => !i.advisory);
+  r.adviceIssues = r.issues.filter(i => i.advisory);
+  r.issueCount = r.hardIssues.length;
+  r.adviceCount = r.adviceIssues.length;
+  return r;
+}
+
+/* =========================================================
+   8. 登录 / 会话
+   ========================================================= */
+let loginRole = 'student';
+$$('#roleTabs button').forEach(b => b.onclick = () => {
+  $$('#roleTabs button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); loginRole = b.dataset.role; $('#loginErr').textContent = '';
+});
+$$('[data-fill]').forEach(a => a.onclick = () => {
+  const [u, p] = a.dataset.fill.split('|');
+  $('#loginUser').value = u; $('#loginPass').value = p;
+});
+
+$('#loginBtn').onclick = () => {
+  const u = $('#loginUser').value.trim(), p = $('#loginPass').value;
+  const found = USERS.find(x => x.user === u && x.pass === p);
+  if (!found) { $('#loginErr').textContent = '账号或密码不正确，请检查后重试。'; return; }
+  if (found.role !== loginRole) { $('#loginErr').textContent = '该账号是' + (found.role === 'teacher' ? '教师' : '学生') + '账号，请切换上方身份。'; return; }
+  SESSION = { user: found.user, name: found.name, role: found.role, cls: found.cls };
+  DB.set(K_SESSION, SESSION);
+  enterApp();
+};
+
+$('#registerBtn').onclick = () => {
+  const u = $('#loginUser').value.trim(), p = $('#loginPass').value;
+  if (u.length < 3) { $('#loginErr').textContent = '账号至少 3 个字符。'; return; }
+  if (p.length < 6) { $('#loginErr').textContent = '密码至少 6 位。'; return; }
+  if (USERS.some(x => x.user === u)) { $('#loginErr').textContent = '该账号已存在，请直接登录。'; return; }
+  USERS.push({ user: u, pass: p, name: u, role: loginRole, cls: '英语 2024 级 1 班' });
+  DB.set(K_USERS, USERS);
+  toast('注册成功，请登录');
+  $('#loginErr').textContent = '';
+};
+
+$('#logoutBtn').onclick = () => {
+  SESSION = null; DB.set(K_SESSION, null);
+  $('#app').hidden = true; $('#loginView').hidden = false;
+};
+
+function enterApp() {
+  CURRENT = null;
+  $('#loginView').hidden = true; $('#app').hidden = false;
+  $('#userName').textContent = SESSION.name + '（' + SESSION.user + '）';
+  $('#userRole').textContent = SESSION.role === 'teacher' ? '教师' : '学生';
+  $('#userAvatar').textContent = SESSION.name.charAt(0);
+  $$('.teacher-only').forEach(el => el.hidden = SESSION.role !== 'teacher');
+  switchView('correct');
+  refreshHistory();
+  refreshClass();
+  loadSettingsUI();
+}
+
+/* =========================================================
+   9. 视图切换
+   ========================================================= */
+function switchView(v) {
+  CUR_VIEW = v;
+  ['correct', 'history', 'class', 'settings'].forEach(x => {
+    const el = $('#view-' + x); if (el) el.hidden = x !== v;
+  });
+  $$('#nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  if (v === 'history') refreshHistory();
+  if (v === 'class') refreshClass();
+}
+$$('#nav button').forEach(b => b.onclick = () => switchView(b.dataset.view));
+$$('#rtabs button').forEach(b => b.onclick = () => {
+  CUR_TAB = b.dataset.tab;
+  $$('#rtabs button').forEach(x => x.classList.toggle('on', x === b));
+  renderResult(CUR_TAB);
+});
+
+/* =========================================================
+   10. 批改流程
+   ========================================================= */
+const SAMPLE = `Nowadays, more and more students study English in china. I think learn English is very important for us. Because English is a international language, so we can communicate with people from different country. In my opinion i think, if you want to get a good job, you must can use English freely.
+
+However, many students have some problems in learning English. For example, they always remember words by writing them again and again, but they can not use it in a sentence. Som student even feel afraid when they speak English, becuase they worry about make mistakes. In last year, my classmate Li Ming go to America for study, he found it is very difficult to understand what the teacher say。
+
+So, how can we improve our English? First, we should pay attention on listening and speaking。Second, we should learn knowledge from many ways, such as watching english movies and talking with foreign teacher. Third, do not be afraid of make mistakes. If we can do these things, we will make a progress step by step.`;
+
+$('#loadSample').onclick = () => {
+  $('#essayTitle').value = 'The Importance of Learning English';
+  $('#essay').value = SAMPLE;
+  updateCounts();
+};
+$('#clearEssay').onclick = () => {
+  $('#essayTitle').value = ''; $('#essay').value = ''; updateCounts();
+};
+$('#essay').oninput = updateCounts;
+
+function updateCounts() {
+  const t = $('#essay').value;
+  const w = (t.match(/[A-Za-z']+/g) || []).length;
+  $('#wordCount').textContent = w + ' 词';
+  $('#sentCount').textContent = splitSentences(t).length + ' 句';
+}
+updateCounts();
+
+const STEP_NAMES = ['拼写与大小写检查', '语法结构分析', '固定搭配与用词评估', '标点与句式诊断', '生成总评与修改报告'];
+
+$('#analyzeBtn').onclick = async () => {
+  const text = $('#essay').value.trim();
+  if (text.length < 30) { toast('请先输入至少 30 个字符的英文作文'); return; }
+  if ((text.match(/[A-Za-z]/g) || []).length < 25) { toast('检测到英文内容过少，请输入英文作文'); return; }
+
+  const stepsBox = $('#steps');
+  stepsBox.hidden = false; stepsBox.innerHTML = '';
+  STEP_NAMES.forEach((n, i) => {
+    stepsBox.insertAdjacentHTML('beforeend',
+      '<div class="step" id="st' + i + '"><span class="dot"></span><span>' + n + '</span></div>');
+  });
+
+  const runStep = i => new Promise(r => {
+    const el = $('#st' + i); if (el) el.classList.add('run');
+    setTimeout(() => { if (el) { el.classList.remove('run'); el.classList.add('done'); } r(); }, 330);
+  });
+  for (let i = 0; i < STEP_NAMES.length; i++) await runStep(i);
+
+  let res = analyze(text);
+  res.title = $('#essayTitle').value.trim();
+  res.student = SESSION.name;
+  res.time = new Date().toLocaleString('zh-CN');
+  res.engine = 'local';
+
+  const cfg = { mode: SETTINGS.mode, base: SETTINGS.base, model: SETTINGS.model, key: SETTINGS.key };
+  if ((cfg.mode === 'ai' || cfg.mode === 'both') && cfg.base && cfg.key) {
+    stepsBox.insertAdjacentHTML('beforeend', '<div class="step run" id="stAI"><span class="dot"></span><span>调用大模型深度批改…</span></div>');
+    try {
+      const ai = await aiAnalyze(text, cfg);
+      res = mergeAI(res, ai);
+      const el = $('#stAI'); if (el) { el.classList.remove('run'); el.classList.add('done'); }
+    } catch (e) {
+      const el = $('#stAI'); if (el) { el.classList.remove('run'); el.classList.add('done'); }
+      toast('AI 批改失败（' + e.message + '），已使用本地引擎结果');
+    }
+  }
+
+  CURRENT = res;
+  SUBS.push({
+    id: Date.now(), user: SESSION.user, student: SESSION.name, cls: SESSION.cls,
+    title: res.title, score: res.score.total, cefr: res.score.cefr,
+    words: res.stats.words, issues: res.issueCount, time: res.time, engine: res.engine
+  });
+  DB.set(K_SUBS, SUBS);
+
+  setTimeout(() => { stepsBox.hidden = true; }, 700);
+  CUR_TAB = 'overview';
+  $$('#rtabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === 'overview'));
+  renderResult('overview');
+  toast('批改完成：' + res.issueCount + ' 处需修改，综合得分 ' + res.score.total);
+  refreshHistory(); refreshClass();
+};
+
+/* =========================================================
+   11. 档案 / 教师端
+   ========================================================= */
+function refreshHistory() {
+  if (!SESSION) return;
+  const list = SUBS.filter(s => s.user === SESSION.user).sort((a, b) => b.id - a.id);
+  $('#histCount').textContent = list.length + ' 篇';
+  const box = $('#historyBody');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty-state"><div class="big">▤</div><p>还没有批改记录</p>'
+      + '<p class="small">去「作文批改」提交第一篇作文吧</p></div>';
+    return;
+  }
+  const avg = round(list.reduce((a, b) => a + b.score, 0) / list.length);
+  const best = Math.max(...list.map(x => x.score));
+  box.innerHTML = '<div class="stat-grid" style="margin-top:0">'
+    + '<div class="stat"><div class="k">累计批改</div><div class="v">' + list.length + ' 篇</div></div>'
+    + '<div class="stat"><div class="k">平均分</div><div class="v">' + avg + '</div></div>'
+    + '<div class="stat"><div class="k">最高分</div><div class="v">' + best + '</div></div>'
+    + '<div class="stat"><div class="k">累计词数</div><div class="v">' + list.reduce((a, b) => a + b.words, 0) + '</div></div>'
+    + '</div><table class="tbl" style="margin-top:18px"><thead><tr><th>题目</th><th>得分</th><th>CEFR</th>'
+    + '<th>词数</th><th>问题数</th><th>引擎</th><th>时间</th></tr></thead><tbody>'
+    + list.map(s => '<tr><td>' + esc(s.title || '（未命名）') + '</td>'
+      + '<td><span class="pill ' + (s.score >= 80 ? 'g' : s.score >= 65 ? 'w' : 'b') + '">' + s.score + '</span></td>'
+      + '<td>' + esc(s.cefr) + '</td><td>' + s.words + '</td><td>' + s.issues + '</td>'
+      + '<td class="muted small">' + (s.engine === 'ai' ? 'AI 增强' : '本地引擎') + '</td>'
+      + '<td class="muted small">' + esc(s.time) + '</td></tr>').join('')
+    + '</tbody></table>';
+}
+
+function refreshClass() {
+  if (!SESSION || SESSION.role !== 'teacher') return;
+  const list = SUBS.slice().sort((a, b) => b.id - a.id);
+  $('#classCount').textContent = list.length + ' 篇';
+  const box = $('#classStats');
+  if (!list.length) {
+    box.innerHTML = '<div class="empty-state"><div class="big">▤</div><p>暂无提交数据</p>'
+      + '<p class="small">学生提交作文后，这里会自动汇总班级学情</p></div>';
+    $('#classTable').innerHTML = '';
+    return;
+  }
+  const avg = round(list.reduce((a, b) => a + b.score, 0) / list.length);
+  const avgIssues = round(list.reduce((a, b) => a + b.issues, 0) / list.length);
+  const avgWords = round(list.reduce((a, b) => a + b.words, 0) / list.length);
+  const bands = { 'A(80+)': 0, 'B(65-79)': 0, 'C(<65)': 0 };
+  list.forEach(s => s.score >= 80 ? bands['A(80+)']++ : s.score >= 65 ? bands['B(65-79)']++ : bands['C(<65)']++);
+  const students = new Set(list.map(s => s.user)).size;
+
+  box.innerHTML = '<div class="stat-grid" style="margin-top:0">'
+    + '<div class="stat"><div class="k">参与学生</div><div class="v">' + students + '</div></div>'
+    + '<div class="stat"><div class="k">提交总数</div><div class="v">' + list.length + '</div></div>'
+    + '<div class="stat"><div class="k">班级均分</div><div class="v">' + avg + '</div></div>'
+    + '<div class="stat"><div class="k">平均问题数</div><div class="v">' + avgIssues + '</div></div>'
+    + '<div class="stat"><div class="k">平均词数</div><div class="v">' + avgWords + '</div></div>'
+    + '</div>'
+    + '<div style="margin-top:20px"><div class="small muted">成绩分布</div><div class="dist">'
+    + '<i style="width:' + (bands['A(80+)'] / list.length * 100) + '%;background:#2f8f6f"></i>'
+    + '<i style="width:' + (bands['B(65-79)'] / list.length * 100) + '%;background:#c9812b"></i>'
+    + '<i style="width:' + (bands['C(<65)'] / list.length * 100) + '%;background:#c0392b"></i>'
+    + '</div><div class="small muted" style="margin-top:8px">优秀 80+：' + bands['A(80+)'] + ' 篇 ｜ 合格 65-79：'
+    + bands['B(65-79)'] + ' 篇 ｜ 待提升 &lt;65：' + bands['C(<65)'] + ' 篇</div></div>';
+
+  $('#classTable').innerHTML = '<table class="tbl"><thead><tr><th>学生</th><th>题目</th><th>得分</th>'
+    + '<th>CEFR</th><th>词数</th><th>问题数</th><th>提交时间</th></tr></thead><tbody>'
+    + list.map(s => '<tr><td><b>' + esc(s.student) + '</b><div class="small muted">' + esc(s.user) + '</div></td>'
+      + '<td>' + esc(s.title || '（未命名）') + '</td>'
+      + '<td><span class="pill ' + (s.score >= 80 ? 'g' : s.score >= 65 ? 'w' : 'b') + '">' + s.score + '</span></td>'
+      + '<td>' + esc(s.cefr) + '</td><td>' + s.words + '</td><td>' + s.issues + '</td>'
+      + '<td class="muted small">' + esc(s.time) + '</td></tr>').join('')
+    + '</tbody></table>';
+}
+
+$('#seedDemo').onclick = () => {
+  const demo = [
+    ['张小语', 'stu01', 'My Campus Life', 76, 'B2', 214, 17],
+    ['李思远', 'stu02', 'The Impact of AI on Learning', 84, 'B2+', 236, 9],
+    ['张小语', 'stu01', 'Why I Love Reading', 81, 'B2', 198, 11]
+  ];
+  demo.forEach((d, i) => {
+    if (SUBS.some(s => s.user === d[1] && s.title === d[2])) return;
+    SUBS.push({
+      id: Date.now() - i * 1000, user: d[1], student: d[0], cls: '英语 2024 级 1 班', title: d[2],
+      score: d[3], cefr: d[4], words: d[5], issues: d[6],
+      time: new Date(Date.now() - (i + 1) * 86400000).toLocaleString('zh-CN'), engine: 'local'
+    });
+  });
+  DB.set(K_SUBS, SUBS);
+  toast('示例数据已载入');
+  refreshHistory(); refreshClass();
+};
+
+/* =========================================================
+   12. 设置
+   ========================================================= */
+const PRESETS = {
+  deepseek: { base: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  openai: { base: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  dashscope: { base: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  zhipu: { base: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
+  custom: { base: '', model: '' }
+};
+$('#setPreset').onchange = e => {
+  const p = PRESETS[e.target.value]; if (!p) return;
+  $('#setBase').value = p.base; $('#setModel').value = p.model;
+};
+$('#saveSettings').onclick = () => {
+  SETTINGS = {
+    mode: $('#setMode').value, base: $('#setBase').value.trim(),
+    model: $('#setModel').value.trim(), key: $('#setKey').value.trim()
+  };
+  DB.set(K_SET, SETTINGS);
+  updateModeChip();
+  toast('设置已保存');
+};
+$('#testAI').onclick = async () => {
+  const base = $('#setBase').value.trim(), key = $('#setKey').value.trim(), model = $('#setModel').value.trim();
+  const msg = $('#aiTestMsg');
+  if (!base || !key || !model) { msg.textContent = '请先填写完整的三项信息'; msg.style.color = '#c0392b'; return; }
+  msg.textContent = '正在测试…'; msg.style.color = '#52606d';
+  try {
+    const r = await fetch(base.replace(/\/+$/, '') + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: 'reply OK' }], max_tokens: 5 })
+    });
+    msg.textContent = r.ok ? '连接成功，可以正常使用' : '连接失败：HTTP ' + r.status;
+    msg.style.color = r.ok ? '#2f8f6f' : '#c0392b';
+  } catch (e) {
+    msg.textContent = '连接失败：' + e.message + '（可能是网络或浏览器跨域限制）';
+    msg.style.color = '#c0392b';
+  }
+};
+$('#wipeData').onclick = () => {
+  if (!confirm('确定清空本机所有账号、作文与设置吗？此操作不可恢复。')) return;
+  [K_USERS, K_SUBS, K_SESSION, K_SET].forEach(k => localStorage.removeItem(k));
+  location.reload();
+};
+function loadSettingsUI() {
+  $('#setMode').value = SETTINGS.mode || 'local';
+  $('#setBase').value = SETTINGS.base || '';
+  $('#setModel').value = SETTINGS.model || '';
+  $('#setKey').value = SETTINGS.key || '';
+  updateModeChip();
+}
+function updateModeChip() {
+  const c = $('#modeChip');
+  const on = (SETTINGS.mode === 'ai' || SETTINGS.mode === 'both') && SETTINGS.base && SETTINGS.key;
+  c.textContent = on ? 'AI 增强已开启' : '本地引擎';
+  c.style.color = on ? '#6c5ca8' : '#52606d';
+  c.style.borderColor = on ? '#c9c1ee' : '#e2e6ea';
+}
+
+/* =========================================================
+   13. 启动
+   ========================================================= */
+if (SESSION) { enterApp(); }
+else { $('#loginView').hidden = false; }
+
+// 作为网站模块运行时，显示返回视频工作台的入口（本地双击打开时自动隐藏）
+if (location.protocol !== 'file:') {
+  $('#backStudio').hidden = false;
+  $('#backStudio2').hidden = false;
+  $('#backStudio').onclick = () => { location.href = '/'; };
+}
+window.downloadReport = downloadReport;
+window.copyCorrected = copyCorrected;
+
+/* =========================================================
+   14. 讲解视频：把批改结果交给视频 Agent，自动生成讲解片
+   ========================================================= */
+let VIDEO_BUSY = false;
+
+function videoApi(path, body) {
+  const headers = { 'Content-Type': 'application/json', 'X-Frameflow-Client': 'studio' };
+  const options = body ? { method: 'POST', headers: headers, body: JSON.stringify(body) } : { headers: headers };
+  return fetch('/api' + path, options).then(function (res) {
+    return res.text().then(function (text) {
+      let data = {};
+      try { data = JSON.parse(text); } catch (e) { data = {}; }
+      if (!res.ok) throw new Error((data && data.error) || ('服务返回 HTTP ' + res.status));
+      return data;
+    });
+  });
+}
+
+/* 把批改结果压缩成视频 Agent 需要的事实数据：画面与旁白都由它驱动 */
+function essayToVideoPayload(r) {
+  const first = (r.text.split(/(?<=[.!?])\s+/)[0] || '').trim();
+  const title = (r.title && r.title.trim()) || first.slice(0, 40) || '英语作文';
+  const cats = (r.byCat || []).slice()
+    .sort(function (a, b) { return (b.sev || 0) - (a.sev || 0) || b.items.length - a.items.length; })
+    .slice(0, 2)
+    .map(function (c) {
+      return {
+        label: c.label, sev: c.sev,
+        items: c.items.slice(0, 1).map(function (it) {
+          return {
+            orig: it.start === it.end ? '（此处缺漏）' : r.text.slice(it.start, it.end),
+            rep: it.replacement || '（删除）',
+            tip: it.tip || ''
+          };
+        })
+      };
+    });
+  const upgrades = (r.issues || [])
+    .filter(function (i) { return i.cat === 'style' && i.start !== i.end && i.replacement; })
+    .slice(0, 4)
+    .map(function (i) { return r.text.slice(i.start, i.end) + ' → ' + i.replacement; });
+  return {
+    title: title,
+    score: r.score.total, cefr: r.score.cefr,
+    words: r.stats.words, sents: r.stats.sentences, issues: r.issueCount,
+    dims: { 准确性: r.score.accuracy, 词汇: r.score.vocab, 句式: r.score.variety, 连贯: r.score.coherence },
+    strengths: (r.disc.strengths || []).slice(0, 3),
+    categories: cats,
+    upgrades: upgrades,
+    advice: (r.disc.tips || []).slice(0, 4)
+  };
+}
+
+function showVideoPanel(msg, pct, state) {
+  const panel = $('#videoPanel');
+  panel.hidden = false;
+  panel.classList.toggle('done', state === 'done');
+  panel.classList.toggle('fail', state === 'fail');
+  $('#videoMsg').textContent = msg;
+  if (pct >= 0) $('#videoBar').style.width = Math.min(100, pct) + '%';
+}
+
+function generateExplainVideo() {
+  const r = CURRENT;
+  if (!r) { toast('请先完成一次批改'); return; }
+  if (location.protocol === 'file:') {
+    toast('此功能需要网站服务，请通过 http://127.0.0.1:4173/essay 打开本页');
+    return;
+  }
+  if (VIDEO_BUSY) { toast('讲解视频正在生成中，请稍候'); return; }
+  VIDEO_BUSY = true;
+  $('#videoActions').hidden = true;
+  showVideoPanel('正在创建讲解视频项目…', 4);
+
+  const stages = [
+    ['script', '正在撰写讲解脚本…', 22],
+    ['outline', '正在规划讲解章节…', 38],
+    ['scenes', '正在拆分讲解分镜…', 54],
+    ['visuals', '正在绘制讲解画面…', 68],
+    ['audio', '正在合成中文配音（约 15 秒）…', 90]
+  ];
+
+  (async function () {
+    try {
+      const payload = essayToVideoPayload(r);
+      const created = await videoApi('/projects', {
+        mode: 'html', template: 'essay',
+        prompt: '作文讲解 · ' + payload.title, essay: payload
+      });
+      let rev = created.revision;
+      for (let i = 0; i < stages.length; i++) {
+        showVideoPanel(stages[i][1], stages[i][2]);
+        const out = await videoApi('/projects/' + created.id + '/run', { stage: stages[i][0], revision: rev });
+        rev = out.revision;
+        if (out.steps[stages[i][0]].status !== 'completed') throw new Error(out.steps[stages[i][0]].error || '生成失败');
+      }
+      const full = await videoApi('/projects/' + created.id);
+      const total = full.scenes.reduce(function (n, s) { return n + s.duration; }, 0);
+      showVideoPanel('已完成：' + full.scenes.length + ' 幕讲解，成片约 ' + Math.round(total) + ' 秒。点下方按钮预览并录屏导出。', 100, 'done');
+      const actions = $('#videoActions');
+      actions.innerHTML = '<button class="btn-primary" onclick="location.href=\'/?project=' + created.id + '\'">打开视频工作台 →</button>'
+        + '<button class="btn-ghost" onclick="document.getElementById(\'videoPanel\').hidden=true">稍后查看</button>';
+      actions.hidden = false;
+      toast('讲解视频已生成，共 ' + full.scenes.length + ' 幕');
+    } catch (e) {
+      showVideoPanel('生成失败：' + e.message, 100, 'fail');
+      const actions = $('#videoActions');
+      actions.innerHTML = '<button class="btn-ghost" onclick="document.getElementById(\'videoPanel\').hidden=true">关闭</button>';
+      actions.hidden = false;
+    } finally {
+      VIDEO_BUSY = false;
+    }
+  })();
+}
+
+window.generateExplainVideo = generateExplainVideo;
+</script>
+</body>
+</html>

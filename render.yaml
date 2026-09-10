@@ -1,0 +1,13 @@
+# Render 蓝图：在 Render 控制台选择 Blueprint 并指向本仓库，即可一键创建。
+# 也可不用本文件，直接在控制台 New → Web Service 手动填写，效果相同。
+services:
+  - type: web
+    name: frameflow-studio
+    runtime: node
+    plan: free
+    startCommand: node server.mjs
+    healthCheckPath: /api/config
+    envVars:
+      # 公网部署必须放行外部域名，否则会返回 403「不允许的访问主机」
+      - key: ALLOWED_HOSTS
+        value: "*"
