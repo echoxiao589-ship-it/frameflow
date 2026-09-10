@@ -17,7 +17,7 @@ test('unknown lessons are rejected before synthesis',async()=>{
 test('English examples generate real WAV, share concurrent requests and persist cache',{skip:process.platform!=='win32'},async()=>{
   const dir=await mkdtemp(join(tmpdir(),'little-voice-tts-')),service=createEnglishService(dir);
   const [first,second]=await Promise.all([service.voice('animal-friends'),service.voice('animal-friends')]);assert.deepEqual(first,second);assert.equal(first.lines.length,3);
-  for(const l of first.lines){const b=await readFile(join(dir,l.url.slice(1)));assert.ok(wavDuration(b)>.5);assert.ok(wavDuration(b)<12)}
+  for(const l of first.lines){const b=await readFile(join(dir,l.url.slice(1)));const dur=l.url.endsWith('.mp3')?b.length*8/48000:wavDuration(b);assert.ok(dur>.5);assert.ok(dur<12)}
   const afterRestart=await createEnglishService(dir).voice('animal-friends');assert.deepEqual(first,afterRestart);
 });
 test('student recordings get local WebM duration without uploading their content',async()=>{

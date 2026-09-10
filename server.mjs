@@ -19,7 +19,7 @@ const store = createStore(dataRoot), locks = new Set();
 const english = createEnglishService(dataRoot);
 const provider = createProvider(join(dataRoot,'assets'), { provider:process.env.AI_PROVIDER || 'demo', url:process.env.AI_GATEWAY_URL, key:process.env.AI_GATEWAY_KEY });
 requireValue(['demo','gateway'].includes(provider.kind),'AI_PROVIDER 只能为 demo 或 gateway');
-const types = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.webm':'video/webm','.mp4':'video/mp4'};
+const types = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.mp3':'audio/mpeg','.webm':'video/webm','.mp4':'video/mp4'};
 function publicProject(p) { const {exportTicket,...rest}=p; return {...rest,busy:locks.has(p.id)}; }
 function reply(res,status,value) { res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}); res.end(JSON.stringify(value)); }
 async function bytes(req,max=1024*1024) { let size=0; const parts=[]; for await (const part of req) {size+=part.length;requireValue(size<=max,'请求内容过大',413);parts.push(part)}return Buffer.concat(parts); }
@@ -37,7 +37,7 @@ async function run(p,body) {
     if(stage==='scenes')p.scenes=result.scenes;
     if(stage==='visuals')p.scenes.forEach((s,i)=>{s.visual=result.visuals[i]});
     if(stage==='audio'){p.scenes.forEach((s,i)=>{s.audio=result.audio[i];s.duration=Math.max(s.duration,s.audio.seconds+.5)});p.music=result.music}
-    p.steps[stage]={status:'completed',completedAt:new Date().toISOString(),source:stage==='audio'&&provider.kind==='demo'?'Windows SAPI':provider.kind};
+    p.steps[stage]={status:'completed',completedAt:new Date().toISOString(),source:stage==='audio'?(result.audio&&result.audio[0]&&result.audio[0].source||provider.kind):provider.kind};
     log(p,'assistant',`${LABELS[STEPS.indexOf(stage)]}已完成。${stage==='audio'?'请播放检查画面与声音，确认后才能录屏输出。':'可以检查并编辑结果，然后继续下一步。'}`);
   } catch(error) {p.steps[stage]={status:'failed',error:error.status?error.message:'生成失败，请稍后重试'};throw error}
   finally {locks.delete(p.id);store.touch(p)}
@@ -112,8 +112,9 @@ const server=http.createServer(async(req,res)=>{
       }
     }
     if(['GET','HEAD'].includes(req.method)){
-      if(/^\/(assets|exports)\/[a-f0-9-]+\.(svg|png|jpg|webp|wav|webm|mp4)$/.test(path))return await serveFile(req,res,join(dataRoot,path.slice(1)),path.startsWith('/exports/'));
-      const allowed={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/style.css':'style.css','/base.css':'base.css','/english':'english.html','/english/':'english.html','/english.css':'english.css','/english.js':'english.js','/media-utils.js':'media-utils.js','/essay':'essay.html','/essay/':'essay.html','/essay.html':'essay.html'};
+      if(/^\/(assets|exports)\/[a-f0-9-]+\.(svg|png|jpg|webp|wav|webm|mp4|mp3)$/.test(path))return await serveFile(req,res,join(dataRoot,path.slice(1)),path.startsWith('/exports/'));
+      if(path==='/'&&req.method==='GET'&&!url.searchParams.has('studio')){res.writeHead(302,{Location:'/essay'});return res.end();}
+      const allowed={'/':'index.html','/index.html':'index.html','/app.js':'app.js','/style.css':'style.css','/base.css':'base.css','/studio':'index.html','/studio/':'index.html','/english':'english.html','/english/':'english.html','/english.css':'english.css','/english.js':'english.js','/media-utils.js':'media-utils.js','/essay':'essay.html','/essay/':'essay.html','/essay.html':'essay.html'};
       if(allowed[path])return await serveFile(req,res,join(root,'public',allowed[path]));
     }
     throw new Problem(404,'接口或页面不存在');

@@ -92,6 +92,9 @@ textarea#essay{min-height:330px;line-height:1.85;resize:vertical;font-size:14.5p
 .video-cta .vc-txt{flex:1;min-width:200px;display:flex;flex-direction:column;gap:4px}
 .video-cta .vc-txt b{font-size:15px;color:#12262c}
 .video-cta .vc-txt span{font-size:12.5px;color:#5b6b72;line-height:1.55}
+.vc-voices{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.vvoice{border:1px solid #cfd8d6;background:#f4f8f7;color:#41565c;font-size:12px;padding:5px 11px;border-radius:999px;cursor:pointer}
+.vvoice.on{background:#0f766e;border-color:#0f766e;color:#fff}
 .btn-lg{width:100%;justify-content:center;padding:12px;font-size:15px;font-weight:600}
 
 /* 分析动画 */
@@ -456,7 +459,7 @@ table.tbl tr:hover td{background:#fafcfd}
 <div id="videoStage" hidden>
   <div class="vp-head">
     <div class="vp-title">🎬 讲解视频 · <span id="vpTitle"></span></div>
-    <div class="vp-voices"><span class="vp-vlabel">配音音色：</span><span id="vpVoices"></span></div>
+    <div class="vp-voices"><span class="vp-vlabel">配音音色：</span><span class="vp-voice on" id="vpVoiceName">—</span></div>
   </div>
   <div class="vp-frame-wrap"><iframe id="vpFrame" title="讲解视频画面"></iframe></div>
   <div class="vp-ctrl">
@@ -467,7 +470,7 @@ table.tbl tr:hover td{background:#fafcfd}
     <span class="vp-time" id="vpTime">0:00 / 0:00</span>
   </div>
   <div class="vp-scenes" id="vpScenes"></div>
-  <p class="vp-note" id="vpNote">旁白用浏览器内置语音朗读（可选音色）；画面右下角为你的写作原稿，讲到对应句子会高亮。听不到声音时点击播放按钮重试一次。</p>
+  <p class="vp-note" id="vpNote">旁白为真人级神经语音配音（生成时按所选音色合成）；画面底部是你的写作原稿，讲到对应句子会高亮。听不到声音时点一下「播放」。</p>
 </div>
 
 <script>
@@ -1141,7 +1144,8 @@ function viewOverview(r) {
     + '<div class="video-cta">'
     + '  <div class="vc-ico">🎬</div>'
     + '  <div class="vc-txt"><b>把这篇文章的批改变成一段讲解视频</b>'
-    + '    <span>点右侧按钮，Agent 会依据上面这份批改结果自动生成脚本、画面、字幕和中文配音，约 15 秒完成，可发给学生反复观看。</span></div>'
+    + '    <span>Agent 依据批改结果自动生成脚本、画面、字幕与真人级中文配音（微软神经语音）。先选配音音色，再点右侧按钮。</span></div>'
+    + '  <div class="vc-voices" id="vcVoices">' + VOICE_CHIPS + '</div>'
     + '  <button class="btn-primary" onclick="generateExplainVideo()" id="explainBtn">🎬 生成讲解视频</button>'
     + '</div>'
     + '<div class="dims">'
@@ -1704,6 +1708,16 @@ window.copyCorrected = copyCorrected;
    ========================================================= */
 let VIDEO_BUSY = false;
 
+/* 配音音色（生成前选择，服务端用 Edge 神经语音合成真人级旁白） */
+const VOICE_OPTIONS = ['温柔女声', '阳光男声', '沉稳解说', '活泼萌音'];
+let VOICE_PICK = '温柔女声';
+const VOICE_CHIPS = VOICE_OPTIONS.map((v, i) =>
+  '<button class="vvoice' + (i === 0 ? ' on' : '') + '" data-v="' + v + '" onclick="pickVoice(this)">' + v + '</button>').join('');
+window.pickVoice = function (el) {
+  VOICE_PICK = el.getAttribute('data-v');
+  document.querySelectorAll('.vvoice').forEach(function (b) { b.classList.toggle('on', b === el); });
+};
+
 function videoApi(path, body) {
   const headers = { 'Content-Type': 'application/json', 'X-Frameflow-Client': 'studio' };
   const options = body ? { method: 'POST', headers: headers, body: JSON.stringify(body) } : { headers: headers };
@@ -1779,12 +1793,13 @@ function generateExplainVideo() {
     ['outline', '正在规划讲解章节…', 38],
     ['scenes', '正在拆分讲解分镜…', 54],
     ['visuals', '正在绘制讲解画面…', 68],
-    ['audio', '正在合成中文配音（约 15 秒）…', 90]
+    ['audio', '正在合成真人级中文配音…', 90]
   ];
 
   (async function () {
     try {
       const payload = essayToVideoPayload(r);
+      payload.voice = VOICE_PICK;
       const created = await videoApi('/projects', {
         mode: 'html', template: 'essay',
         prompt: '作文讲解 · ' + payload.title, essay: payload
@@ -1848,6 +1863,21 @@ function vpSpeak(scene) {
   speechSynthesis.speak(u);
 }
 
+/* 优先播放服务端合成的真人级配音（Edge 神经语音）；没有音频数据时退回浏览器语音 */
+function vpStartSound(scene) {
+  if (!VP) return;
+  if (scene.audio && scene.audio.url) {
+    VP.audioEl.src = scene.audio.url;
+    try { VP.audioEl.currentTime = Math.max(0, VP.pos - VP.starts[VP.index]); } catch (e) {}
+    const pr = VP.audioEl.play();
+    if (pr && pr.catch) pr.catch(function () {
+      $('#vpNote').textContent = '浏览器拦住了声音：点一下「播放」按钮即可恢复真人配音。';
+    });
+    return;
+  }
+  vpSpeak(scene);
+}
+
 function vpStopVoice() { if ('speechSynthesis' in window) speechSynthesis.cancel(); }
 
 function vpShowScene(i, speak) {
@@ -1855,7 +1885,7 @@ function vpShowScene(i, speak) {
   const s = VP.scenes[i];
   if (VP.frameDoc !== s.visual.html) { VP.frame.setAttribute('srcdoc', s.visual.html); VP.frameDoc = s.visual.html; }
   Array.prototype.forEach.call($('#vpScenes').children, function (el, k) { el.classList.toggle('on', k === i); });
-  if (speak) vpSpeak(s);
+  if (speak) vpStartSound(s);
 }
 
 function vpRender() {
@@ -1882,7 +1912,7 @@ function vpPlay() {
   if (VP.pos >= VP.total) { VP.pos = 0; vpShowScene(0, false); }
   VP.playing = true; VP.lastTs = 0;
   $('#vpPlay').textContent = '暂停';
-  if (VP.pos - VP.starts[VP.index] < 0.5) vpSpeak(VP.scenes[VP.index]);
+  vpStartSound(VP.scenes[VP.index]);
   requestAnimationFrame(vpTick);
 }
 
@@ -1890,6 +1920,7 @@ function vpPause() {
   if (!VP) return;
   VP.playing = false; VP.lastTs = 0;
   $('#vpPlay').textContent = '播放';
+  if (VP.audioEl) VP.audioEl.pause();
   vpStopVoice();
 }
 
@@ -1901,8 +1932,12 @@ function mountInlinePlayer(project) {
   let t = 0;
   const starts = scenes.map(function (s) { const v = t; t += s.duration; return v; });
   VP = { scenes: scenes, starts: starts, total: t, pos: 0, index: 0, playing: false, lastTs: 0,
-    frame: $('#vpFrame'), frameDoc: null, voices: vpVoicePresets(), voiceIndex: 0 };
+    frame: $('#vpFrame'), frameDoc: null, voices: vpVoicePresets(), voiceIndex: 0,
+    audioEl: new Audio() };
+  if (VP.audioEl) VP.audioEl.preload = 'auto';
   $('#vpTitle').textContent = String(project.prompt || '作文讲解').replace(/^作文讲解\s*·\s*/, '');
+  $('#vpVoiceName').textContent = (project.essay && project.essay.voice) || '温柔女声';
+  $('#vpNote').textContent = '旁白为真人级神经语音配音（生成时按所选音色合成）；画面底部是你的写作原稿，讲到对应句子会高亮。听不到声音时点一下「播放」。';
   $('#vpScenes').innerHTML = scenes.map(function (s, i) {
     return '<button class="vp-scene' + (i === 0 ? ' on' : '') + '" data-i="' + i + '"><b>第 ' + (i + 1) + ' 幕</b><span>' + esc(s.title) + '</span><small>' + s.duration + ' 秒</small></button>';
   }).join('');
@@ -1911,18 +1946,6 @@ function mountInlinePlayer(project) {
       const i = Number(el.getAttribute('data-i'));
       VP.pos = VP.starts[i];
       vpShowScene(i, VP.playing); vpRender();
-    };
-  });
-  const voiceBox = $('#vpVoices');
-  voiceBox.innerHTML = VP.voices.length
-    ? VP.voices.map(function (p, i) { return '<button class="vp-voice' + (i === 0 ? ' on' : '') + '" data-i="' + i + '">' + p.label + '</button>'; }).join('')
-    : '<span class="vp-none">当前浏览器暂无可用语音，将静音播放</span>';
-  Array.prototype.forEach.call(voiceBox.children, function (el) {
-    if (!el.getAttribute('data-i')) return;
-    el.onclick = function () {
-      VP.voiceIndex = Number(el.getAttribute('data-i'));
-      Array.prototype.forEach.call(voiceBox.children, function (c) { c.classList.toggle('on', c === el); });
-      if (VP.playing) vpSpeak(VP.scenes[VP.index]);
     };
   });
   $('#videoStage').hidden = false;

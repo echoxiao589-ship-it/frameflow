@@ -105,7 +105,7 @@ test('interrupted tasks recover as failed and corrupted stores never silently re
 });
 test('Windows local provider generates actual speech files', {skip:process.platform!=='win32'}, async()=>{
   const assets=await mkdtemp(join(tmpdir(),'frameflow-speech-'));const local=createProvider(assets,{provider:'demo'});
-  const result=await local.generate('audio',{musicStyle:'none',scenes:[{narration:'你好，欢迎使用帧序。',duration:3}]});assert.ok(result.audio[0].seconds>1);assert.equal(result.audio[0].source,'Windows SAPI');assert.equal(result.music,null);
+  const result=await local.generate('audio',{musicStyle:'none',scenes:[{narration:'你好，欢迎使用帧序。',duration:3}]});assert.ok(result.audio[0].seconds>1);assert.ok(['Windows SAPI','Edge 神经语音 · 温柔女声'].includes(result.audio[0].source));assert.equal(result.music,null);
 });
 test('streaming WebM receives duration metadata without changing encoded frames',()=>{
   const header=Buffer.from([0x1a,0x45,0xdf,0xa3,0x80,0x18,0x53,0x80,0x67,0xff,0x15,0x49,0xa9,0x66,0x87,0x2a,0xd7,0xb1,0x83,0x0f,0x42,0x40]);
