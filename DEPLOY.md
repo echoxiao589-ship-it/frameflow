@@ -16,7 +16,25 @@
 
 ## 二、三种部署方式
 
-### 1. Docker（Koyeb / Fly.io / 任意容器平台 / 自建服务器）
+### 1. Render（免费、无需信用卡，推荐）
+
+在 Render 控制台直接建 Web Service：New + → Web Service → 选本仓库 → 填写：
+
+| 字段 | 值 |
+| --- | --- |
+| Name | `frameflow` |
+| Region | Singapore（国内访问最快） |
+| Build Command | `npm install` |
+| Start Command | `node server.mjs` |
+| Instance Type | Free（512 MB / 0.1 CPU，无需信用卡） |
+
+> **端口不用填**：Render 会注入 `PORT`，服务会自动绑定 `0.0.0.0` 并放行公网域名。
+
+也可以走 Blueprint：仓库已含 `render.yaml`，New + → Blueprint → 选本仓库 → Apply，环境变量会自动填好。
+
+免费档的两个限制：**15 分钟无访问会休眠**（下次打开冷启动 30～60 秒）、**文件系统临时**（重新部署后 `data/` 清空）。
+
+### 2. Docker（任意容器平台 / 自建服务器）
 
 仓库已含 `Dockerfile`：
 
@@ -30,14 +48,11 @@ docker run -d -p 8080:8080 --name frameflow \
 
 挂载 `/app/data` 到持久卷，项目数据才不会随容器重建丢失。
 
-### 2. Render（Blueprints 一键）
-
-仓库已含 `render.yaml`：Render 控制台 → New → Blueprint → 选择本仓库 → Apply。
-或手动 New → Web Service → 选仓库 → Start Command 填 `node server.mjs` → Plan 选 Free。
-
 ### 3. Koyeb / 其他 Node 平台
 
-直接用 Git 部署即可，平台会执行 `npm install` 与 `npm start`（即 `node server.mjs`）。
+> ⚠️ **Koyeb 免费版已关闭**：2026 年 2 月 Koyeb 被 Mistral AI 收购，免费 Starter 计划不再对新用户开放（新账号最低 $29/月）。仍在运行的老账号不受影响，但新部署请改用上面第 1 种方式。
+
+其他支持 Node 的平台可直接用 Git 部署，平台会执行 `npm install` 与 `npm start`（即 `node server.mjs`）；若平台**不注入 `PORT`**，需手动设置 `HOST=0.0.0.0`。
 
 ## 三、绑定自己的域名
 
@@ -45,7 +60,7 @@ docker run -d -p 8080:8080 --name frameflow \
 
 | 要绑定的域名 | 记录类型 | 记录值 |
 | --- | --- | --- |
-| `www.你的域名` | CNAME | 平台给你的默认域名（如 `xxx.koyeb.app`） |
+| `www.你的域名` | CNAME | 平台给你的默认域名（如 `xxx.onrender.com`） |
 | `你的域名`（裸域） | A / ALIAS | 平台提供的 IP，或用 CNAME 扁平化 / 301 跳转到 www |
 
 证书由平台自动签发（Let's Encrypt），无需自己配置 HTTPS。
