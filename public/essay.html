@@ -427,6 +427,49 @@ table.tbl tr:hover td{background:#fafcfd}
   <div class="vactions" id="videoActions" hidden></div>
 </div>
 
+<style>
+#videoStage{margin-top:14px;background:#fffdf7;border:1px solid #eadfca;border-radius:16px;padding:16px 18px}
+.vp-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.vp-title{font-size:14.5px;font-weight:700;color:#12262c}
+.vp-voices{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.vp-vlabel{font-size:12.5px;color:#8a7f68}
+.vp-voice{border:1px solid #d8cdb4;background:#faf5e8;color:#57503f;font-size:12.5px;padding:5px 12px;border-radius:999px;cursor:pointer}
+.vp-voice.on{background:#0f766e;border-color:#0f766e;color:#fff}
+.vp-none{font-size:12.5px;color:#8a7f68}
+.vp-frame-wrap{border-radius:12px;overflow:hidden;background:#fbf6ec;border:1px solid #eadfca}
+#vpFrame{display:block;width:100%;aspect-ratio:16/9;border:0}
+.vp-ctrl{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+.vp-btn{border:1px solid #0f766e;background:#0f766e;color:#fff;font-size:13.5px;padding:7px 16px;border-radius:999px;cursor:pointer}
+.vp-btn.sm{background:#fff;color:#0f766e}
+.vp-track{flex:1;min-width:120px;height:8px;border-radius:999px;background:#eee3cd;overflow:hidden}
+.vp-track i{display:block;height:100%;width:0;background:#0f766e;border-radius:999px}
+.vp-time{font-size:12.5px;color:#8a7f68;font-variant-numeric:tabular-nums}
+.vp-scenes{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:12px}
+.vp-scene{display:flex;flex-direction:column;align-items:flex-start;gap:3px;border:1px solid #eadfca;background:#faf5e8;border-radius:10px;padding:8px 10px;cursor:pointer;text-align:left}
+.vp-scene b{font-size:12px;color:#0f766e}
+.vp-scene span{font-size:12.5px;color:#2c2a24;line-height:1.35}
+.vp-scene small{font-size:11px;color:#8a7f68}
+.vp-scene.on{border-color:#0f766e;background:#e8f5f2}
+.vp-note{margin:10px 0 0;font-size:12px;color:#8a7f68}
+</style>
+
+<div id="videoStage" hidden>
+  <div class="vp-head">
+    <div class="vp-title">🎬 讲解视频 · <span id="vpTitle"></span></div>
+    <div class="vp-voices"><span class="vp-vlabel">配音音色：</span><span id="vpVoices"></span></div>
+  </div>
+  <div class="vp-frame-wrap"><iframe id="vpFrame" title="讲解视频画面"></iframe></div>
+  <div class="vp-ctrl">
+    <button id="vpPlay" class="vp-btn">播放</button>
+    <button id="vpPrev" class="vp-btn sm">上一幕</button>
+    <button id="vpNext" class="vp-btn sm">下一幕</button>
+    <div class="vp-track"><i id="vpFill"></i></div>
+    <span class="vp-time" id="vpTime">0:00 / 0:00</span>
+  </div>
+  <div class="vp-scenes" id="vpScenes"></div>
+  <p class="vp-note" id="vpNote">旁白用浏览器内置语音朗读（可选音色）；画面右下角为你的写作原稿，讲到对应句子会高亮。听不到声音时点击播放按钮重试一次。</p>
+</div>
+
 <script>
 /* =========================================================
    1. 工具函数
@@ -1705,7 +1748,8 @@ function essayToVideoPayload(r) {
     strengths: (r.disc.strengths || []).slice(0, 3),
     categories: cats,
     upgrades: upgrades,
-    advice: (r.disc.tips || []).slice(0, 4)
+    advice: (r.disc.tips || []).slice(0, 4),
+    origText: r.text.replace(/\s+/g, ' ').trim().slice(0, 700)
   };
 }
 
@@ -1754,10 +1798,11 @@ function generateExplainVideo() {
       }
       const full = await videoApi('/projects/' + created.id);
       const total = full.scenes.reduce(function (n, s) { return n + s.duration; }, 0);
-      showVideoPanel('已完成：' + full.scenes.length + ' 幕讲解，成片约 ' + Math.round(total) + ' 秒。点下方按钮预览并录屏导出。', 100, 'done');
+      showVideoPanel('已完成：' + full.scenes.length + ' 幕讲解，成片约 ' + Math.round(total) + ' 秒。播放器就在下方，选好音色直接点播放。', 100, 'done');
+      mountInlinePlayer(full);
       const actions = $('#videoActions');
-      actions.innerHTML = '<button class="btn-primary" onclick="location.href=\'/?project=' + created.id + '\'">打开视频工作台 →</button>'
-        + '<button class="btn-ghost" onclick="document.getElementById(\'videoPanel\').hidden=true">稍后查看</button>';
+      actions.innerHTML = '<button class="btn-ghost" onclick="document.getElementById(\'videoStage\').scrollIntoView({behavior:\'smooth\',block:\'center\'})">定位到播放器</button>'
+        + '<button class="btn-ghost" onclick="document.getElementById(\'videoPanel\').hidden=true;document.getElementById(\'videoStage\').hidden=true">收起</button>';
       actions.hidden = false;
       toast('讲解视频已生成，共 ' + full.scenes.length + ' 幕');
     } catch (e) {
@@ -1769,6 +1814,136 @@ function generateExplainVideo() {
       VIDEO_BUSY = false;
     }
   })();
+}
+
+/* ---------- 内嵌播放器：批改页内直接播放，不跳转 ----------
+   画面：分镜 HTML 放进 iframe，按时钟推进（不受音频限制）
+   声音：浏览器内置语音朗读旁白，提供多种音色，服务器无需语音引擎 */
+let VP = null;
+
+function vpVoicePresets() {
+  if (!('speechSynthesis' in window)) return [];
+  const all = speechSynthesis.getVoices();
+  const zh = all.filter(function (v) { return /^zh([-_]|$)/i.test(v.lang) || /chinese|中文|普通话/i.test(v.name); });
+  const pool = zh.length ? zh : all;
+  const pick = function (re) { return pool.find(function (v) { return re.test(v.name); }); };
+  const female = pick(/Xiaoxiao|Xiaoyi|Yaoyao|Huihui|Tingting|Meijia|女|female|Google 普通话/i) || pool[0];
+  const male = pick(/Kangkang|Yunyang|Yunxi|Yunjian|男|male/i) || pool.find(function (v) { return v !== female; }) || female;
+  return [
+    { label: '温柔女声', voice: female, pitch: 1.05, rate: 0.95 },
+    { label: '阳光男声', voice: male, pitch: 0.95, rate: 1 },
+    { label: '沉稳解说', voice: male, pitch: 0.78, rate: 0.9 },
+    { label: '活泼萌音', voice: female, pitch: 1.4, rate: 1.05 }
+  ].filter(function (p) { return p.voice; });
+}
+
+function vpSpeak(scene) {
+  if (!('speechSynthesis' in window) || !VP) return;
+  speechSynthesis.cancel();
+  const p = VP.voices[VP.voiceIndex];
+  if (!p) return;
+  const u = new SpeechSynthesisUtterance(scene.narration);
+  u.voice = p.voice; u.pitch = p.pitch; u.rate = p.rate;
+  u.lang = (p.voice && p.voice.lang) || 'zh-CN';
+  speechSynthesis.speak(u);
+}
+
+function vpStopVoice() { if ('speechSynthesis' in window) speechSynthesis.cancel(); }
+
+function vpShowScene(i, speak) {
+  VP.index = i;
+  const s = VP.scenes[i];
+  if (VP.frameDoc !== s.visual.html) { VP.frame.setAttribute('srcdoc', s.visual.html); VP.frameDoc = s.visual.html; }
+  Array.prototype.forEach.call($('#vpScenes').children, function (el, k) { el.classList.toggle('on', k === i); });
+  if (speak) vpSpeak(s);
+}
+
+function vpRender() {
+  $('#vpFill').style.width = (VP.total ? Math.min(100, VP.pos / VP.total * 100) : 0) + '%';
+  const f = function (s) { return Math.floor(s / 60) + ':' + ('0' + Math.floor(s % 60)).slice(-2); };
+  $('#vpTime').textContent = f(VP.pos) + ' / ' + f(VP.total);
+}
+
+function vpTick() {
+  if (!VP || !VP.playing) return;
+  if (VP.lastTs) VP.pos += (performance.now() - VP.lastTs) / 1000;
+  VP.lastTs = performance.now();
+  if (VP.pos >= VP.total) { VP.pos = VP.total; vpRender(); vpPause(); return; }
+  let i = VP.index;
+  while (i + 1 < VP.starts.length && VP.pos >= VP.starts[i + 1]) i++;
+  if (i !== VP.index) vpShowScene(i, true);
+  vpRender();
+  requestAnimationFrame(vpTick);
+}
+
+function vpPlay() {
+  if (!VP) return;
+  if (!VP.voices.length) VP.voices = vpVoicePresets();
+  if (VP.pos >= VP.total) { VP.pos = 0; vpShowScene(0, false); }
+  VP.playing = true; VP.lastTs = 0;
+  $('#vpPlay').textContent = '暂停';
+  if (VP.pos - VP.starts[VP.index] < 0.5) vpSpeak(VP.scenes[VP.index]);
+  requestAnimationFrame(vpTick);
+}
+
+function vpPause() {
+  if (!VP) return;
+  VP.playing = false; VP.lastTs = 0;
+  $('#vpPlay').textContent = '播放';
+  vpStopVoice();
+}
+
+function mountInlinePlayer(project) {
+  const scenes = (project.scenes || []).filter(function (s) { return s.visual && s.visual.html; });
+  if (!scenes.length) return;
+  vpStopVoice();
+  if (VP) VP.playing = false;
+  let t = 0;
+  const starts = scenes.map(function (s) { const v = t; t += s.duration; return v; });
+  VP = { scenes: scenes, starts: starts, total: t, pos: 0, index: 0, playing: false, lastTs: 0,
+    frame: $('#vpFrame'), frameDoc: null, voices: vpVoicePresets(), voiceIndex: 0 };
+  $('#vpTitle').textContent = String(project.prompt || '作文讲解').replace(/^作文讲解\s*·\s*/, '');
+  $('#vpScenes').innerHTML = scenes.map(function (s, i) {
+    return '<button class="vp-scene' + (i === 0 ? ' on' : '') + '" data-i="' + i + '"><b>第 ' + (i + 1) + ' 幕</b><span>' + esc(s.title) + '</span><small>' + s.duration + ' 秒</small></button>';
+  }).join('');
+  Array.prototype.forEach.call($('#vpScenes').children, function (el) {
+    el.onclick = function () {
+      const i = Number(el.getAttribute('data-i'));
+      VP.pos = VP.starts[i];
+      vpShowScene(i, VP.playing); vpRender();
+    };
+  });
+  const voiceBox = $('#vpVoices');
+  voiceBox.innerHTML = VP.voices.length
+    ? VP.voices.map(function (p, i) { return '<button class="vp-voice' + (i === 0 ? ' on' : '') + '" data-i="' + i + '">' + p.label + '</button>'; }).join('')
+    : '<span class="vp-none">当前浏览器暂无可用语音，将静音播放</span>';
+  Array.prototype.forEach.call(voiceBox.children, function (el) {
+    if (!el.getAttribute('data-i')) return;
+    el.onclick = function () {
+      VP.voiceIndex = Number(el.getAttribute('data-i'));
+      Array.prototype.forEach.call(voiceBox.children, function (c) { c.classList.toggle('on', c === el); });
+      if (VP.playing) vpSpeak(VP.scenes[VP.index]);
+    };
+  });
+  $('#videoStage').hidden = false;
+  VP.frameDoc = null;
+  vpShowScene(0, false); vpRender();
+  $('#vpPlay').textContent = '播放';
+}
+
+$('#vpPlay').onclick = function () { if (VP) { VP.playing ? vpPause() : vpPlay(); } };
+$('#vpPrev').onclick = function () {
+  if (!VP) return;
+  const i = Math.max(0, VP.index - 1);
+  VP.pos = VP.starts[i]; vpShowScene(i, VP.playing); vpRender();
+};
+$('#vpNext').onclick = function () {
+  if (!VP) return;
+  const i = Math.min(VP.scenes.length - 1, VP.index + 1);
+  VP.pos = VP.starts[i]; vpShowScene(i, VP.playing); vpRender();
+};
+if ('speechSynthesis' in window) {
+  speechSynthesis.onvoiceschanged = function () { if (VP && !VP.voices.length) VP.voices = vpVoicePresets(); };
 }
 
 window.generateExplainVideo = generateExplainVideo;
