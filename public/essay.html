@@ -547,19 +547,26 @@ const STDS = {
   ielts: { label: '雅思', scale: 9,  min: 250, max: 400, tip: '雅思写作（Task 2）：不少于 250 词，按任务完成/连贯衔接/词汇/语法四维度评 9 分制 Band。' }
 };
 let STD = 'cet4';
+function stdKeyLabel(k) { return (STDS[k] || STDS.cet4).label; }
 
-function stdScore(std, total) {
+function stdScore(std, total, len) {
   if (std === 'ielts') {
-    const b = Math.max(3.5, Math.min(8.5, Math.round((3.5 + total / 100 * 4.5) * 2) / 2));
+    let b = Math.max(3.5, Math.min(8.5, Math.round((3.5 + total / 100 * 4.5) * 2) / 2));
+    let lenNote = '';
+    if (len && len.coverage < 1) {           // 雅思：字数不足，任务完成度直接压 Band
+      const ceil = len.coverage < 0.4 ? 4.5 : len.coverage < 0.6 ? 5.0 : len.coverage < 0.8 ? 5.5 : 6.0;
+      if (b > ceil) { b = ceil; lenNote = '（字数不足 ' + len.min + ' 词，任务完成度受限，Band 已封顶）'; }
+      else lenNote = '（字数未达 ' + len.min + ' 词要求）';
+    }
     const d = b >= 7 ? '良好偏上，达到多数院校 6.5–7.0 要求' : b >= 6 ? '中等，达到多数院校 6.0 门槛' : b >= 5 ? '及格边缘，距 6.0 还差一档' : '基础薄弱，需系统训练';
-    return { label: '雅思 Band', value: b.toFixed(1), band: d, total };
+    return { label: '雅思 Band', value: b.toFixed(1), band: d + lenNote, total };
   }
   const v = Math.max(2, Math.min(15, Math.round(total / 100 * 15)));
   const band = v >= 13 ? '第一档 13–15（表达流畅，仅个别瑕疵）'
     : v >= 10 ? '第二档 10–12（切题，语言有少量错误）'
     : v >= 7 ? '第三档 7–9（基本切题，错误影响理解）'
     : v >= 4 ? '第四档 4–6（未充分完成任务）' : '第五档 1–3（无法传达信息）';
-  return { label: STDS[std].label + ' 15 分制', value: v + ' / 15', band, total };
+  return { label: STDS[std].label + ' 15 分制', value: v + ' / 15', band: band + (len && len.coverage < 1 ? '（字数未达标，任务完成度扣分）' : ''), total };
 }
 function buildRevised(r) {
   let t = r.text;
@@ -571,6 +578,27 @@ function buildTrace(r) {
   return r.issues.filter(x => x.replacement && x.sev === 3).slice(0, 80).map(x => ({
     orig: r.text.slice(x.start, x.end), rep: x.replacement, tip: x.explain || x.tip || ''
   }));
+}
+
+/* ---------- 任务完成度：按所选标准检查词数是否达标，并据此设总分上限 ---------- */
+function lengthProfile(stdKey, words) {
+  const sd = STDS[stdKey] || STDS.cet4;
+  const coverage = sd.min ? words / sd.min : 1;
+  let task = clamp(round(10 + coverage * 80), 20, 100);          // 达到最低词数约 90 分
+  if (words > sd.max) task = Math.max(20, task - Math.min(20, round((words - sd.max) / sd.max * 30)));
+  let cap = 100, note = '';
+  if (coverage < 0.35) { cap = 45; note = '篇幅严重不足'; }
+  else if (coverage < 0.55) { cap = 52; note = '篇幅明显不足'; }
+  else if (coverage < 0.8) { cap = 62; note = '篇幅偏短'; }
+  else if (coverage < 1) { cap = 72; note = '略低于要求'; }
+  if (stdKey === 'ielts') {                                       // 雅思：字数不足任务完成度直接封顶
+    if (coverage < 0.5) cap = Math.min(cap, 50);
+    else if (coverage < 0.8) cap = Math.min(cap, 70);
+    else if (coverage < 1) cap = Math.min(cap, 78);
+  }
+  if (words > sd.max * 1.5) cap = Math.min(cap, 88);
+  return { task, cap, coverage, min: sd.min, max: sd.max, label: sd.label, note,
+    long: words > sd.max, short: words < sd.min };
 }
 
 /* =========================================================
@@ -1018,7 +1046,7 @@ function discourseChecks(text, sents, words) {
 }
 
 /* ---- 主分析流程 ---- */
-function analyze(text) {
+function analyze(text, stdKey) {
   const issues = [];
   const steps = [
     () => ruleSpelling(text, issues),
@@ -1064,7 +1092,12 @@ function analyze(text) {
   const vocab = clamp(round(30 + stats.ttr * 68 + stats.longRatio * 70), 40, 100);
   const variety = clamp(round(42 + disc.sd * 4 + disc.subord * 2.6), 40, 100);
   const coherence = clamp(round(46 + disc.conn.length * 5 + disc.paras * 4), 40, 100);
-  const total = round(accuracy * 0.4 + vocab * 0.25 + variety * 0.2 + coherence * 0.15);
+  const length = lengthProfile(stdKey, words);
+  const raw = round(accuracy * 0.35 + vocab * 0.2 + variety * 0.15 + coherence * 0.12 + length.task * 0.18);
+  const total = Math.min(raw, length.cap);   // 任务完成度不足时压低总分（对齐四六级/雅思的真实规则）
+  const capped = total < raw;
+  if (length.short) disc.tips.unshift('篇幅不足：' + stdKeyLabel(stdKey) + '要求 ' + length.min + '–' + length.max
+    + ' 词，本文仅 ' + words + ' 词。建议先补齐内容（每个论点再加 2–3 句论证或例子），再回头打磨语言。');
   const cefr = total >= 88 ? 'C1' : total >= 78 ? 'B2+' : total >= 70 ? 'B2' : total >= 62 ? 'B1+' : total >= 52 ? 'B1' : 'A2';
 
   // 分类统计
@@ -1078,8 +1111,16 @@ function analyze(text) {
 
   // 总评文字
   const catList = Object.values(byCat).sort((a, b) => b.items.length - a.items.length);
+  const lengthNote = length.coverage < 0.9
+    ? '本题要求 ' + length.min + '–' + length.max + ' 词（' + stdKeyLabel(stdKey) + '），本文仅 ' + words + ' 词，'
+      + length.note + '，任务完成度得分偏低，因此总分被限制在 ' + length.cap + ' 分以内。'
+      + (stdKey === 'ielts' ? '雅思写作字数不足会直接拉低任务完成度（TR）评分，务必写够 250 词。' : '请先把内容写足，再打磨语言。')
+    : (length.long
+      ? '本文 ' + words + ' 词，超出建议上限 ' + length.max + ' 词，注意控制在要求范围内，避免因冗长而失分。'
+      : '本文 ' + words + ' 词，篇幅符合 ' + stdKeyLabel(stdKey) + ' 要求。');
   const p1 = '本文共 ' + words + ' 词、' + sents.length + ' 个句子、' + stats.paragraphs + ' 个段落，'
-    + '综合得分 ' + total + ' 分，估算水平约相当于 CEFR ' + cefr + '。'
+    + '综合得分 ' + total + ' 分' + (capped ? '（因篇幅不足已封顶）' : '') + '，估算水平约相当于 CEFR ' + cefr + '。'
+    + lengthNote
     + (total >= 80 ? '整体表达比较顺畅，语言基本功扎实。'
       : total >= 68 ? '整体意思表达清楚，但语言准确性还有提升空间。'
       : '主旨基本可以理解，但语言层面存在较多可改进之处。');
@@ -1101,7 +1142,8 @@ function analyze(text) {
   return {
     text, title: '', issues: finalIssues, hardIssues, adviceIssues, stats, sev, density,
     issueCount: hardIssues.length, adviceCount: adviceIssues.length,
-    score: { total, accuracy, vocab, variety, coherence, cefr },
+    score: { total, accuracy, vocab, variety, coherence, task: length.task, cefr },
+    length, capped, standard: stdKey,
     byCat: catList, disc, summary: [p1, p2, p3], sentences: sents
   };
 }
@@ -1187,7 +1229,14 @@ function viewOverview(r) {
     + '  <div style="flex:1;min-width:220px">'
     + '    <div class="badge-cefr">CEFR 估算：' + s.cefr + '</div>'
     + (r.standard && r.std ? '<div class="badge-cefr" style="margin-left:8px;background:var(--ok-soft);color:var(--ok)">' + esc(r.std.label) + '：' + esc(r.std.value) + (r.std.band ? ' · ' + esc(r.std.band) : '') + '</div>' : '')
-    + '    <div class="small muted" style="margin-top:8px">满分 100 分，结合语言准确性、词汇、句式与连贯性加权计算</div>'
+    + '    <div class="small muted" style="margin-top:8px">满分 100 分，按「任务完成度 18% + 语法准确度 35% + 词汇 20% + 句式 15% + 连贯 12%」加权计算'
+    + (r.length ? '；本题要求 ' + r.length.min + '–' + r.length.max + ' 词（' + esc(stdKeyLabel(r.standard)) + '），篇幅不足会限制总分上限' : '') + '</div>'
+    + (r.length && r.length.short
+      ? '<div class="warn" style="margin-top:10px"><b>⚠ 篇幅不足</b>' + (r.capped ? '本文仅 ' + st.words + ' 词，未达到 '
+        + r.length.min + ' 词的最低要求，总分已限制在 ' + r.length.cap + ' 分以内（' + esc(r.length.note) + '）。' : '')
+      + '请先补齐内容再评估语言水平。</div>' : '')
+    + (r.length && r.length.long
+      ? '<div class="warn" style="margin-top:10px"><b>⚠ 篇幅偏长</b>本文 ' + st.words + ' 词，超过建议上限 ' + r.length.max + ' 词。</div>' : '')
     + '    <div class="stat-grid">'
     + '      <div class="stat"><div class="k">总词数</div><div class="v">' + st.words + '</div></div>'
     + '      <div class="stat"><div class="k">句子数</div><div class="v">' + st.sentences + '</div></div>'
@@ -1205,7 +1254,7 @@ function viewOverview(r) {
     + '  <button class="btn-primary" onclick="generateExplainVideo()" id="explainBtn">🎬 生成讲解视频</button>'
     + '</div>'
     + '<div class="dims">'
-    + dimBar('语法准确度', s.accuracy) + dimBar('词汇丰富度', s.vocab)
+    + dimBar('任务完成度', s.task) + dimBar('语法准确度', s.accuracy) + dimBar('词汇丰富度', s.vocab)
     + dimBar('句式多样性', s.variety) + dimBar('篇章连贯性', s.coherence)
     + '</div>'
     + '<div class="summary-block"><h3>总体评价</h3><p>' + esc(r.summary[0]) + '</p><p>' + esc(r.summary[1]) + '</p><p>' + esc(r.summary[2]) + '</p></div>'
@@ -1568,7 +1617,7 @@ $('#analyzeBtn').onclick = async () => {
   });
   for (let i = 0; i < STEP_NAMES.length; i++) await runStep(i);
 
-  let res = analyze(text);
+  let res = analyze(text, STD);
   res.title = $('#essayTitle').value.trim();
   res.student = SESSION.name;
   res.time = new Date().toLocaleString('zh-CN');
@@ -1580,6 +1629,9 @@ $('#analyzeBtn').onclick = async () => {
     try {
       const ai = await aiAnalyze(text, cfg);
       res = mergeAI(res, ai);
+      // AI 给出的分数同样受篇幅上限约束，避免字数不足仍得高分
+      if (res.length && res.score.total > res.length.cap) { res.score.total = res.length.cap; res.capped = true; }
+      { const l = res.length; if (l) res.score.cefr = res.score.total >= 88 ? 'C1' : res.score.total >= 78 ? 'B2+' : res.score.total >= 70 ? 'B2' : res.score.total >= 62 ? 'B1+' : res.score.total >= 52 ? 'B1' : 'A2'; }
       const el = $('#stAI'); if (el) { el.classList.remove('run'); el.classList.add('done'); }
     } catch (e) {
       const el = $('#stAI'); if (el) { el.classList.remove('run'); el.classList.add('done'); }
@@ -1589,7 +1641,7 @@ $('#analyzeBtn').onclick = async () => {
 
   CURRENT = res;
   res.standard = STD;
-  res.std = stdScore(STD, res.score.total);
+  res.std = stdScore(STD, res.score.total, res.length);
   SUBS.push({
     id: Date.now(), user: SESSION.user, student: SESSION.name, cls: SESSION.cls,
     title: res.title, score: res.score.total, cefr: res.score.cefr,
