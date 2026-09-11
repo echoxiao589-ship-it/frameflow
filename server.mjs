@@ -79,6 +79,26 @@ const server=http.createServer(async(req,res)=>{
         if(body.template==='essay'){requireValue(body.essay&&typeof body.essay==='object','作文讲解项目需要携带批改数据');const essay=JSON.parse(JSON.stringify(body.essay));requireValue(JSON.stringify(essay).length<200000,'批改数据过大',413);p.template='essay';p.essay=essay;store.touch(p)}
         return reply(res,201,publicProject(p))}
     }
+    // ---------- 作文批改存档：学生提交后教师可在班级管理中查看 ----------
+    if(path==='/api/essays'){
+      if(req.method==='GET')return reply(res,200,await readFile(join(dataRoot,'essays.json'),'utf8').then(JSON.parse).catch(()=>[]));
+      if(req.method==='POST'){
+        const body=await json(req);
+        requireValue(typeof body.user==='string'&&body.user.length>=1&&body.user.length<=40,'账号无效',400);
+        requireValue(typeof body.text==='string'&&body.text.trim().length>=10&&body.text.length<30000,'作文正文无效',400);
+        requireValue(['cet4','cet6','ielts'].includes(body.standard),'评分标准无效',400);
+        requireValue(body.score&&typeof body.score==='object','得分数据无效',400);
+        const list=await readFile(join(dataRoot,'essays.json'),'utf8').then(JSON.parse).catch(()=>[]);
+        const rec={id:randomUUID(),user:body.user.slice(0,40),student:String(body.student||body.user).slice(0,40),cls:String(body.cls||'').slice(0,60),
+          title:String(body.title||'').slice(0,120),standard:body.standard,text:body.text,
+          revised:String(body.revised||'').slice(0,30000),
+          trace:Array.isArray(body.trace)?body.trace.slice(0,80).map(t=>({orig:String(t.orig||'').slice(0,400),rep:String(t.rep||'').slice(0,400),tip:String(t.tip||'').slice(0,300)})):[],
+          score:{label:String(body.score.label||'').slice(0,20),value:String(body.score.value||'').slice(0,12),total:Math.round(Number(body.score.total)||0),cefr:String(body.score.cefr||'').slice(0,6)},
+          words:Math.round(Number(body.words)||0),issues:Math.round(Number(body.issues)||0),engine:String(body.engine||'local').slice(0,10),time:new Date().toLocaleString('zh-CN')};
+        list.unshift(rec);await mkdir(dataRoot,{recursive:true});await writeFile(join(dataRoot,'essays.json'),JSON.stringify(list.slice(0,500),null,2));
+        return reply(res,201,{ok:true,id:rec.id});
+      }
+    }
     const match=/^\/api\/projects\/([a-f0-9-]+)(?:\/(.*))?$/.exec(path);
     if(match){const p=store.get(match[1]),action=match[2];
       if(!action&&req.method==='GET')return reply(res,200,publicProject(p));

@@ -196,6 +196,14 @@ del.fix:hover::after,ins.fix:hover::after{content:attr(data-tip);position:absolu
 
 /* 教师端 */
 table.tbl{width:100%;border-collapse:collapse;font-size:13.5px}
+/* 教师端作文详情 */
+.essay-view{white-space:pre-wrap;word-break:break-word;background:#fafbfd;border:1px solid var(--line);
+  border-radius:11px;padding:14px 16px;font-size:13.5px;line-height:1.8;color:#2c3a43;max-height:340px;overflow:auto}
+.cd-trace{display:flex;flex-direction:column;gap:10px}
+.cd-item{border:1px solid var(--line);border-left:3px solid #2f8f6f;border-radius:10px;padding:10px 14px;background:#fff}
+.cd-item .cd-orig{color:#a2382e;text-decoration:line-through;text-decoration-color:rgba(192,57,43,.45);font-size:13px}
+.cd-item .cd-rep{color:#22704f;font-size:13.5px;margin-top:3px}
+.cd-item .cd-tip{margin-top:4px}
 table.tbl th{text-align:left;padding:11px 12px;background:var(--bg);color:var(--ink-2);font-weight:600;
   border-bottom:1px solid var(--line);white-space:nowrap}
 table.tbl td{padding:11px 12px;border-bottom:1px solid var(--line)}
@@ -306,6 +314,15 @@ table.tbl tr:hover td{background:#fafcfd}
               <label>作文题目（选填）</label>
               <input id="essayTitle" placeholder="例如：The Importance of Learning English">
             </div>
+            <div class="field">
+              <label>评分标准</label>
+              <div class="tabs" id="stdTabs" style="margin-bottom:8px">
+                <button class="on" data-std="cet4">大学英语四级</button>
+                <button data-std="cet6">大学英语六级</button>
+                <button data-std="ielts">雅思 IELTS</button>
+              </div>
+              <div class="small muted" id="stdTip">四级写作：120–180 词，重点考察语言准确性与连贯性，满分 15 分。</div>
+            </div>
             <label class="small muted" style="display:block;margin-bottom:6px">作文正文（英文）</label>
             <textarea id="essay" placeholder="在这里粘贴或输入你的英文作文……"></textarea>
             <div class="meta-row">
@@ -362,6 +379,10 @@ table.tbl tr:hover td{background:#fafcfd}
       <div class="card">
         <div class="panel-head"><h2>全部提交记录</h2><span class="chip" id="classCount">0 篇</span></div>
         <div class="panel-body" id="classTable"></div>
+      </div>
+      <div class="card" id="classDetailCard" hidden>
+        <div class="panel-head"><h2 id="cdTitle">作文详情</h2><button class="btn-ghost btn-sm" id="cdClose">收起</button></div>
+        <div class="panel-body" id="classDetail"></div>
       </div>
     </section>
 
@@ -512,11 +533,45 @@ function initUsers() {
 }
 let USERS = initUsers();
 let SUBS = DB.get(K_SUBS, []);
+let CLASS_ESSAYS = [];    // 教师端：服务器存档的全班作文
 let SETTINGS = DB.get(K_SET, { mode: 'local', base: '', model: '', key: '' });
 let SESSION = DB.get(K_SESSION, null);
 let CURRENT = null;       // 当前批改结果
 let CUR_VIEW = 'correct';
 let CUR_TAB = 'overview';
+
+/* ---------- 评分标准：大学英语四级 / 六级 / 雅思 ---------- */
+const STDS = {
+  cet4:  { label: '四级', scale: 15, min: 120, max: 180, tip: '四级写作：120–180 词，重点考察语言准确性与连贯性，满分 15 分。' },
+  cet6:  { label: '六级', scale: 15, min: 150, max: 200, tip: '六级写作：150–200 词，在准确性之上更看重词汇丰富度与论证深度，满分 15 分。' },
+  ielts: { label: '雅思', scale: 9,  min: 250, max: 400, tip: '雅思写作（Task 2）：不少于 250 词，按任务完成/连贯衔接/词汇/语法四维度评 9 分制 Band。' }
+};
+let STD = 'cet4';
+
+function stdScore(std, total) {
+  if (std === 'ielts') {
+    const b = Math.max(3.5, Math.min(8.5, Math.round((3.5 + total / 100 * 4.5) * 2) / 2));
+    const d = b >= 7 ? '良好偏上，达到多数院校 6.5–7.0 要求' : b >= 6 ? '中等，达到多数院校 6.0 门槛' : b >= 5 ? '及格边缘，距 6.0 还差一档' : '基础薄弱，需系统训练';
+    return { label: '雅思 Band', value: b.toFixed(1), band: d, total };
+  }
+  const v = Math.max(2, Math.min(15, Math.round(total / 100 * 15)));
+  const band = v >= 13 ? '第一档 13–15（表达流畅，仅个别瑕疵）'
+    : v >= 10 ? '第二档 10–12（切题，语言有少量错误）'
+    : v >= 7 ? '第三档 7–9（基本切题，错误影响理解）'
+    : v >= 4 ? '第四档 4–6（未充分完成任务）' : '第五档 1–3（无法传达信息）';
+  return { label: STDS[std].label + ' 15 分制', value: v + ' / 15', band, total };
+}
+function buildRevised(r) {
+  let t = r.text;
+  r.issues.filter(x => x.replacement && x.sev === 3).sort((a, b) => b.start - a.start)
+    .forEach(x => { t = t.slice(0, x.start) + x.replacement + t.slice(x.end); });
+  return t;
+}
+function buildTrace(r) {
+  return r.issues.filter(x => x.replacement && x.sev === 3).slice(0, 80).map(x => ({
+    orig: r.text.slice(x.start, x.end), rep: x.replacement, tip: x.explain || x.tip || ''
+  }));
+}
 
 /* =========================================================
    3. 语言规则引擎（核心）
@@ -1131,6 +1186,7 @@ function viewOverview(r) {
     + '  </svg><div class="val"><div><div class="num">' + s.total + '</div><div class="cap">综合得分</div></div></div></div>'
     + '  <div style="flex:1;min-width:220px">'
     + '    <div class="badge-cefr">CEFR 估算：' + s.cefr + '</div>'
+    + (r.standard && r.std ? '<div class="badge-cefr" style="margin-left:8px;background:var(--ok-soft);color:var(--ok)">' + esc(r.std.label) + '：' + esc(r.std.value) + (r.std.band ? ' · ' + esc(r.std.band) : '') + '</div>' : '')
     + '    <div class="small muted" style="margin-top:8px">满分 100 分，结合语言准确性、词汇、句式与连贯性加权计算</div>'
     + '    <div class="stat-grid">'
     + '      <div class="stat"><div class="k">总词数</div><div class="v">' + st.words + '</div></div>'
@@ -1476,10 +1532,21 @@ $('#essay').oninput = updateCounts;
 function updateCounts() {
   const t = $('#essay').value;
   const w = (t.match(/[A-Za-z']+/g) || []).length;
-  $('#wordCount').textContent = w + ' 词';
+  const sd = STDS[STD];
+  $('#wordCount').textContent = w + ' 词' + (w > 0 && (w < sd.min || w > sd.max)
+    ? '（' + sd.label + '建议 ' + sd.min + '–' + sd.max + ' 词' + (w < sd.min ? '，偏少' : '，偏多') + '）' : '');
   $('#sentCount').textContent = splitSentences(t).length + ' 句';
 }
 updateCounts();
+
+/* 评分标准切换 */
+$$('#stdTabs button').forEach(b => b.onclick = () => {
+  $$('#stdTabs button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+  STD = b.dataset.std;
+  $('#stdTip').textContent = STDS[STD].tip;
+  updateCounts();
+});
 
 const STEP_NAMES = ['拼写与大小写检查', '语法结构分析', '固定搭配与用词评估', '标点与句式诊断', '生成总评与修改报告'];
 
@@ -1521,18 +1588,35 @@ $('#analyzeBtn').onclick = async () => {
   }
 
   CURRENT = res;
+  res.standard = STD;
+  res.std = stdScore(STD, res.score.total);
   SUBS.push({
     id: Date.now(), user: SESSION.user, student: SESSION.name, cls: SESSION.cls,
     title: res.title, score: res.score.total, cefr: res.score.cefr,
+    standard: STD, stdLabel: res.std.label, stdValue: res.std.value,
     words: res.stats.words, issues: res.issueCount, time: res.time, engine: res.engine
   });
   DB.set(K_SUBS, SUBS);
+
+  // 上传到服务器存档（班级管理用）；失败不影响本地批改结果
+  try {
+    await fetch('/api/essays', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Frameflow-Client': 'studio' },
+      body: JSON.stringify({
+        user: SESSION.user, student: SESSION.name, cls: SESSION.cls, title: res.title,
+        standard: STD, text: res.text, revised: buildRevised(res), trace: buildTrace(res),
+        score: { label: res.std.label, value: res.std.value, total: res.score.total, cefr: res.score.cefr },
+        words: res.stats.words, issues: res.issueCount, engine: res.engine
+      })
+    });
+  } catch (e) { console.warn('存档上传失败', e); }
 
   setTimeout(() => { stepsBox.hidden = true; }, 700);
   CUR_TAB = 'overview';
   $$('#rtabs button').forEach(x => x.classList.toggle('on', x.dataset.tab === 'overview'));
   renderResult('overview');
-  toast('批改完成：' + res.issueCount + ' 处需修改，综合得分 ' + res.score.total);
+  toast('批改完成（' + STDS[STD].label + ' ' + res.std.value + '）：' + res.issueCount + ' 处需修改');
   refreshHistory(); refreshClass();
 };
 
@@ -1556,10 +1640,11 @@ function refreshHistory() {
     + '<div class="stat"><div class="k">平均分</div><div class="v">' + avg + '</div></div>'
     + '<div class="stat"><div class="k">最高分</div><div class="v">' + best + '</div></div>'
     + '<div class="stat"><div class="k">累计词数</div><div class="v">' + list.reduce((a, b) => a + b.words, 0) + '</div></div>'
-    + '</div><table class="tbl" style="margin-top:18px"><thead><tr><th>题目</th><th>得分</th><th>CEFR</th>'
+    + '</div><table class="tbl" style="margin-top:18px"><thead><tr><th>题目</th><th>得分</th><th>标准成绩</th><th>CEFR</th>'
     + '<th>词数</th><th>问题数</th><th>引擎</th><th>时间</th></tr></thead><tbody>'
     + list.map(s => '<tr><td>' + esc(s.title || '（未命名）') + '</td>'
       + '<td><span class="pill ' + (s.score >= 80 ? 'g' : s.score >= 65 ? 'w' : 'b') + '">' + s.score + '</span></td>'
+      + '<td>' + esc(s.stdLabel ? s.stdLabel + ' ' + s.stdValue : '—') + '</td>'
       + '<td>' + esc(s.cefr) + '</td><td>' + s.words + '</td><td>' + s.issues + '</td>'
       + '<td class="muted small">' + (s.engine === 'ai' ? 'AI 增强' : '本地引擎') + '</td>'
       + '<td class="muted small">' + esc(s.time) + '</td></tr>').join('')
@@ -1568,20 +1653,31 @@ function refreshHistory() {
 
 function refreshClass() {
   if (!SESSION || SESSION.role !== 'teacher') return;
-  const list = SUBS.slice().sort((a, b) => b.id - a.id);
+  // 优先从服务器拉取全班存档（跨设备可见）；失败时退回本机数据
+  fetch('/api/essays', { headers: { 'X-Frameflow-Client': 'studio' } })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(list => { if (Array.isArray(list)) CLASS_ESSAYS = list; renderClass(); })
+    .catch(() => renderClass());
+}
+
+function renderClass() {
+  if (!SESSION || SESSION.role !== 'teacher') return;
+  const list = (CLASS_ESSAYS.length ? CLASS_ESSAYS : SUBS).slice().sort((a, b) => (b.id > a.id ? 1 : -1));
   $('#classCount').textContent = list.length + ' 篇';
   const box = $('#classStats');
   if (!list.length) {
     box.innerHTML = '<div class="empty-state"><div class="big">▤</div><p>暂无提交数据</p>'
       + '<p class="small">学生提交作文后，这里会自动汇总班级学情</p></div>';
     $('#classTable').innerHTML = '';
+    $('#classDetailCard').hidden = true;
     return;
   }
-  const avg = round(list.reduce((a, b) => a + b.score, 0) / list.length);
+  const hasFull = CLASS_ESSAYS.length > 0;
+  const avg = round(list.reduce((a, b) => a + (b.score && typeof b.score === 'object' ? b.score.total : b.score), 0) / list.length);
   const avgIssues = round(list.reduce((a, b) => a + b.issues, 0) / list.length);
   const avgWords = round(list.reduce((a, b) => a + b.words, 0) / list.length);
   const bands = { 'A(80+)': 0, 'B(65-79)': 0, 'C(<65)': 0 };
-  list.forEach(s => s.score >= 80 ? bands['A(80+)']++ : s.score >= 65 ? bands['B(65-79)']++ : bands['C(<65)']++);
+  list.forEach(s => { const t = s.score && typeof s.score === 'object' ? s.score.total : s.score; t >= 80 ? bands['A(80+)']++ : t >= 65 ? bands['B(65-79)']++ : bands['C(<65)']++; });
   const students = new Set(list.map(s => s.user)).size;
 
   box.innerHTML = '<div class="stat-grid" style="margin-top:0">'
@@ -1596,17 +1692,58 @@ function refreshClass() {
     + '<i style="width:' + (bands['B(65-79)'] / list.length * 100) + '%;background:#c9812b"></i>'
     + '<i style="width:' + (bands['C(<65)'] / list.length * 100) + '%;background:#c0392b"></i>'
     + '</div><div class="small muted" style="margin-top:8px">优秀 80+：' + bands['A(80+)'] + ' 篇 ｜ 合格 65-79：'
-    + bands['B(65-79)'] + ' 篇 ｜ 待提升 &lt;65：' + bands['C(<65)'] + ' 篇</div></div>';
+    + bands['B(65-79)'] + ' 篇 ｜ 待提升 &lt;65：' + bands['C(<65)'] + ' 篇'
+    + (hasFull ? '<br>数据来自服务器存档，点击下方任意一行可查看学生作文原文与 AI 修改留痕</div>' : '</div>');
 
-  $('#classTable').innerHTML = '<table class="tbl"><thead><tr><th>学生</th><th>题目</th><th>得分</th>'
-    + '<th>CEFR</th><th>词数</th><th>问题数</th><th>提交时间</th></tr></thead><tbody>'
-    + list.map(s => '<tr><td><b>' + esc(s.student) + '</b><div class="small muted">' + esc(s.user) + '</div></td>'
+  const stdOf = s => s.standard ? (STDS[s.standard] ? STDS[s.standard].label : s.standard) + ' ' + (s.score && s.score.value ? s.score.value : '') : '—';
+  const totalOf = s => s.score && typeof s.score === 'object' ? s.score.total : s.score;
+  $('#classTable').innerHTML = '<table class="tbl"><thead><tr><th>学生</th><th>题目</th><th>综合分</th>'
+    + '<th>标准成绩</th><th>词数</th><th>问题数</th><th>提交时间</th><th></th></tr></thead><tbody>'
+    + list.map((s, i) => '<tr class="click" data-i="' + i + '" style="cursor:pointer"><td><b>' + esc(s.student) + '</b><div class="small muted">' + esc(s.user) + '</div></td>'
       + '<td>' + esc(s.title || '（未命名）') + '</td>'
-      + '<td><span class="pill ' + (s.score >= 80 ? 'g' : s.score >= 65 ? 'w' : 'b') + '">' + s.score + '</span></td>'
-      + '<td>' + esc(s.cefr) + '</td><td>' + s.words + '</td><td>' + s.issues + '</td>'
-      + '<td class="muted small">' + esc(s.time) + '</td></tr>').join('')
+      + '<td><span class="pill ' + (totalOf(s) >= 80 ? 'g' : totalOf(s) >= 65 ? 'w' : 'b') + '">' + totalOf(s) + '</span></td>'
+      + '<td>' + esc(stdOf(s)) + '</td><td>' + s.words + '</td><td>' + s.issues + '</td>'
+      + '<td class="muted small">' + esc(s.time) + '</td>'
+      + '<td class="small">' + (hasFull ? '<a href="javascript:;">查看作文 →</a>' : '') + '</td></tr>').join('')
     + '</tbody></table>';
+  Array.prototype.forEach.call($('#classTable').querySelectorAll('tr.click'), el => {
+    el.onclick = () => showClassDetail(list[Number(el.dataset.i)]);
+  });
 }
+
+function showClassDetail(s) {
+  if (!s) return;
+  $('#classDetailCard').hidden = false;
+  $('#cdTitle').textContent = (s.student || s.user) + ' · ' + (s.title || '（未命名）');
+  const stdOf = s.standard ? (STDS[s.standard] ? STDS[s.standard].label : s.standard)
+    + '：' + (s.score && s.score.value ? s.score.value : '') + (s.score && s.score.cefr ? '（综合 ' + s.score.total + ' / CEFR ' + s.score.cefr + '）' : '') : '综合 ' + (typeof s.score === 'object' ? s.score.total : s.score);
+  let html = '<div class="small muted" style="margin-bottom:12px">' + esc(s.cls || '') + ' · ' + esc(stdOf)
+    + ' · ' + s.words + ' 词 · ' + s.issues + ' 处问题 · ' + esc(s.time) + '</div>';
+
+  if (s.text) {
+    html += '<h4 style="margin:14px 0 6px">📝 学生作文原稿</h4>'
+      + '<pre class="essay-view">' + esc(s.text) + '</pre>';
+  } else {
+    html += '<div class="small muted">该记录早于存档功能，仅保留了分数摘要（无作文原文）。</div>';
+  }
+
+  if (Array.isArray(s.trace) && s.trace.length) {
+    html += '<h4 style="margin:18px 0 6px">🔍 AI 逐句修改留痕（' + s.trace.length + ' 处）</h4><div class="cd-trace">'
+      + s.trace.map(t => '<div class="cd-item"><div class="cd-orig">原句：' + esc(t.orig) + '</div>'
+        + '<div class="cd-rep">改为：<b>' + esc(t.rep) + '</b></div>'
+        + (t.tip ? '<div class="cd-tip small muted">讲解：' + esc(t.tip) + '</div>' : '') + '</div>').join('')
+      + '</div>';
+  }
+
+  if (s.revised) {
+    html += '<h4 style="margin:18px 0 6px">✨ AI 润色后全文</h4><pre class="essay-view">' + esc(s.revised) + '</pre>';
+  }
+
+  $('#classDetail').innerHTML = html;
+  $('#classDetailCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+$('#cdClose').onclick = () => { $('#classDetailCard').hidden = true; };
 
 $('#seedDemo').onclick = () => {
   const demo = [
